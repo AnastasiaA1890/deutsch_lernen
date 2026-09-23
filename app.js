@@ -403,8 +403,9 @@ document.addEventListener('click', e => {
 });
 
 /* ---------- верхняя панель ------------------------------------------------- */
+/* В шапке — общий итог по всем модулям сразу, а не по выбранному. */
 function updateMini() {
-  const c = counts();
+  const c = counts(WORDS);
   $('#miniProgress').textContent = `выучено ${c.known} / ${c.total}`;
 }
 
