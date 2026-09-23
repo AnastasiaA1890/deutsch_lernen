@@ -1114,13 +1114,14 @@ inits.settings = function () {
 /* ==========================================================================
    СПРЯЖЕНИЕ ГЛАГОЛОВ (Präsens)
    ========================================================================== */
+/* er/sie/es и wir/sie/Sie дают одну и ту же форму, поэтому идут одной строкой.
+   ruIdx — какие элементы ruConj собрать в перевод этой строки. */
 const PRONOUNS = [
-  { key: 'ich', de: 'Ich', ru: 'я' },
-  { key: 'du',  de: 'Du',  ru: 'ты' },
-  { key: 'er',  de: 'Er',  ru: 'он, она, оно' },
-  { key: 'wir', de: 'Wir', ru: 'мы' },
-  { key: 'ihr', de: 'Ihr', ru: 'вы' },
-  { key: 'sie', de: 'Sie', ru: 'они, Вы' }
+  { key: 'ich', de: 'Ich',         ru: 'я',              ruIdx: [0] },
+  { key: 'du',  de: 'Du',          ru: 'ты',             ruIdx: [1] },
+  { key: 'er',  de: 'Er/sie/es',   ru: 'он, она, оно',   ruIdx: [2] },
+  { key: 'wir', de: 'Wir/sie/Sie', ru: 'мы, они, Вы',    ruIdx: [3, 5] },
+  { key: 'ihr', de: 'Ihr',         ru: 'вы',             ruIdx: [4] }
 ];
 
 /* Полностью неправильные — таблицей целиком. */
@@ -1212,8 +1213,8 @@ function conjugate(w) {
 const PERSON_NAME = {
   ich: '1-е лицо, единственное число',
   du:  '2-е лицо, единственное число',
-  er:  '3-е лицо, единственное число',
-  wir: '1-е лицо, множественное число',
+  er:  '3-е лицо, ед. ч. — er, sie, es',
+  wir: '1-е и 3-е лицо мн. ч. и вежливое «Sie»',
   ihr: '2-е лицо, множественное число',
   sie: '3-е лицо мн. ч. и вежливое «Sie»'
 };
@@ -1231,7 +1232,8 @@ function conjRule(w, key) {
     return out.join('<br>');
   }
   if (key === 'wir' || key === 'sie') {
-    out.push(`Совпадает с инфинитивом — окончание ${B('-en')} не меняется: ${B(form)}.`);
+    out.push(`У ${B('wir')}, ${B('sie')} и вежливого ${B('Sie')} форма одна и та же и
+      совпадает с инфинитивом — окончание ${B('-en')} не меняется: ${B(form)}.`);
     if (m.change) out.push(`Чередование ${B(m.change)} бывает только у du и er.`);
     return out.join('<br>');
   }
@@ -1311,12 +1313,24 @@ function conjStart(verbs) {
   CJ = { rows: [], module: S.module };
   verbs.forEach(w => {
     const c = conjugate(w);
-    PRONOUNS.forEach((p, i) => {
+    PRONOUNS.forEach(p => {
+      const ru = (w.ruConj || []).length
+        ? p.ruIdx.map(i => w.ruConj[i]).filter(Boolean).join(' · ')
+        : '';
       CJ.rows.push({
         w: w, p: p, answer: c.forms[p.key], hint: c.hint, state: '',
-        ru: (w.ruConj && w.ruConj[i]) || `${p.ru} — ${w.ru}`
+        ru: ru || `${p.ru} — ${w.ru}`
       });
     });
+    /* Страховка: если в словаре руками задали разные формы для wir и sie,
+       объединять их нельзя — показываем sie/Sie отдельной строкой. */
+    if (c.forms.wir !== c.forms.sie) {
+      const p = { key: 'sie', de: 'Sie', ru: 'они, Вы', ruIdx: [5] };
+      CJ.rows.push({
+        w: w, p: p, answer: c.forms.sie, hint: c.hint, state: '',
+        ru: (w.ruConj && w.ruConj[5]) || `${p.ru} — ${w.ru}`
+      });
+    }
   });
   conjRender();
 }
@@ -1380,7 +1394,7 @@ function conjNote(r) {
   if (r.state === 'ok') return '✓';
   if (r.state === 'shown') return `<span class="muted">${esc(r.answer)}</span>`;
   if (r.state === 'bad') return `<span class="bad-text">✗ ${esc(r.answer)}</span>`;
-  if (r.state === 'uml') return `<span class="bad-text">✗ ${esc(r.answer)}<br><small>умляут</small></span>`;
+  if (r.state === 'umlaut') return `<span class="bad-text">✗ ${esc(r.answer)}<br><small>умляут</small></span>`;
   return '';
 }
 function conjCheckRow(i, reveal) {
@@ -1393,7 +1407,7 @@ function conjCheckRow(i, reveal) {
   if (reveal) { r.state = 'shown'; r.typed = r.answer; }
   else if (!typed.trim()) return;
   else if (norm(typed) === norm(r.answer)) r.state = 'ok';
-  else if (loose(typed) === loose(r.answer)) r.state = 'uml';
+  else if (loose(typed) === loose(r.answer)) r.state = 'umlaut';
   else r.state = 'bad';
   conjRefreshRow(i);
   conjScore();
@@ -1414,7 +1428,7 @@ function conjScore() {
 }
 $('#conjCheck').addEventListener('click', () => {
   CJ.rows.forEach((r, i) => conjCheckRow(i));
-  const bad = CJ.rows.filter(r => r.state === 'bad' || r.state === 'uml').length;
+  const bad = CJ.rows.filter(r => r.state === 'bad' || r.state === 'umlaut').length;
   const empty = CJ.rows.filter(r => !r.state).length;
   toast(bad || empty
     ? `Ошибок: ${bad}${empty ? `, не заполнено: ${empty}` : ''}`
