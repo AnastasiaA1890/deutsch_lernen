@@ -78,6 +78,11 @@
         <span class="tile-name">Спряжение</span>
         <span class="tile-desc" id="conjTileDesc">Окончания глаголов по лицам</span>
       </button>
+      <button class="tile" data-go="read" id="readTile">
+        <span class="tile-ico">📚</span>
+        <span class="tile-name">Чтение</span>
+        <span class="tile-desc" id="readTileDesc">Тексты с переводом по наведению</span>
+      </button>
       <button class="tile" data-go="list">
         <span class="tile-ico">📖</span>
         <span class="tile-name">Список слов</span>
@@ -165,6 +170,34 @@
     <div id="listBody"></div>
   </section>
 
+  <!-- ==================== ЧТЕНИЕ: СПИСОК ==================== -->
+  <section class="screen" id="screen-read">
+    <div class="bar wrap">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <h2 class="bar-title">Чтение</h2>
+      <span class="bar-label" id="readCount"></span>
+    </div>
+    <div class="field">
+      <label class="field-label">Уровень</label>
+      <div class="segmented" id="readLevel"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">Тема</label>
+      <div class="segmented scroll-x" id="readTopic"></div>
+    </div>
+    <div id="readList"></div>
+  </section>
+
+  <!-- ==================== ЧТЕНИЕ: ТЕКСТ ==================== -->
+  <section class="screen" id="screen-text">
+    <div class="bar wrap">
+      <button class="icon-btn" data-go="read" title="К списку текстов">←</button>
+      <h2 class="bar-title" id="textTitle"></h2>
+      <span class="bar-label" id="textTopic"></span>
+    </div>
+    <div id="textBody"></div>
+  </section>
+
   <!-- ==================== ДОБАВИТЬ СЛОВА ==================== -->
   <section class="screen" id="screen-add">
     <div class="bar">
@@ -204,8 +237,10 @@
 </main>
 
 <div class="toast" id="toast"></div>
+<div class="tip" id="tip" hidden></div>
 
 <script src="words.js"></script>
+<script src="texts.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

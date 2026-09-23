@@ -231,6 +231,7 @@ let advanceTimer = null;
 const inits = {};
 function go(name) {
   clearTimeout(advanceTimer);
+  hideTip();
   if (current === 'match') stopMatchTimer();
   if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -297,6 +298,9 @@ inits.home = function () {
   document.querySelectorAll('#poolFilter button').forEach(b => {
     b.classList.toggle('active', b.dataset.filter === S.filter);
   });
+  $('#readTileDesc').textContent =
+    `${READ.texts.length} текстов · прочитано ${READ.texts.filter(t => isRead(t.id)).length}`;
+
   const nv = verbsOfModule().length;
   $('#conjTile').disabled = !nv;
   $('#conjTileDesc').textContent = nv
@@ -1441,6 +1445,163 @@ $('#conjReset').addEventListener('click', () => {
   CJ.rows.forEach(r => { r.state = ''; r.typed = ''; });
   conjRender();
 });
+
+
+/* ==========================================================================
+   ЧТЕНИЕ. Раздел ни от каких модулей со словами не зависит: свои тексты,
+   свой словарь подсказок, своя отметка «прочитано».
+   ========================================================================== */
+const READ = window.READING || { gloss: {}, texts: [] };
+const WORD_RE = /[A-Za-zÄÖÜäöüßéÉ]+(?:-[A-Za-zÄÖÜäöüßéÉ]+)*/g;
+let readLevel = 'все', readTopic = 'все', openTextId = null;
+
+function isRead(id) { return !!(S.read && S.read[id]); }
+function setRead(id, on) {
+  if (!S.read) S.read = {};
+  if (on) S.read[id] = 1; else delete S.read[id];
+  save();
+}
+function glossOf(word) { return READ.gloss[String(word).toLowerCase()] || ''; }
+
+/* Оборачиваем каждое слово в span, а точку в конце — в отдельный span:
+   по ним и работают подсказки. */
+function markupWords(escaped) {
+  return escaped.replace(WORD_RE, m => `<span class="w" data-w="${m.toLowerCase()}">${m}</span>`);
+}
+function sentenceHTML(t, i) {
+  const de = t.s[i][0];
+  const m = de.match(/[.!?…]+$/);
+  const body = m ? de.slice(0, -m[0].length) : de;
+  return `<span class="sent">${markupWords(esc(body))}` +
+    (m ? `<span class="se" data-i="${i}" title="перевод предложения">${esc(m[0])}</span>` : '') +
+    '</span> ';
+}
+
+/* ---------- всплывающая подсказка ---------- */
+function showTip(target, html) {
+  const tip = $('#tip');
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const r = target.getBoundingClientRect();
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(10, Math.min(left, window.innerWidth - w - 10));
+  let top = r.bottom + window.scrollY + 8;
+  if (r.bottom + h + 20 > window.innerHeight) top = r.top + window.scrollY - h - 8;
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+function hideTip() { const t = $('#tip'); if (t) t.hidden = true; }
+window.addEventListener('scroll', hideTip, { passive: true });
+
+/* ---------- список текстов ---------- */
+inits.read = function () {
+  hideTip();
+  const levels = ['все'].concat([...new Set(READ.texts.map(t => t.level))]);
+  const topics = ['все'].concat([...new Set(READ.texts.map(t => t.topic))]);
+  if (levels.indexOf(readLevel) < 0) readLevel = 'все';
+  if (topics.indexOf(readTopic) < 0) readTopic = 'все';
+  $('#readLevel').innerHTML = levels.map(l =>
+    `<button data-level="${esc(l)}" class="${l === readLevel ? 'active' : ''}">${esc(l)}</button>`).join('');
+  $('#readTopic').innerHTML = topics.map(l =>
+    `<button data-topic="${esc(l)}" class="${l === readTopic ? 'active' : ''}">${esc(l)}</button>`).join('');
+
+  const list = READ.texts.filter(t =>
+    (readLevel === 'все' || t.level === readLevel) &&
+    (readTopic === 'все' || t.topic === readTopic));
+  const done = READ.texts.filter(t => isRead(t.id)).length;
+  $('#readCount').textContent = `прочитано ${done} из ${READ.texts.length}`;
+
+  $('#readList').innerHTML = list.length ? `<div class="txt-list">${list.map(t => `
+    <button class="txt-card ${isRead(t.id) ? 'done' : ''}" data-text="${esc(t.id)}">
+      <span class="txt-head">
+        <span class="txt-title">${esc(t.title)}</span>
+        <span class="txt-level">${esc(t.level)}</span>
+      </span>
+      <span class="txt-ru">${esc(t.titleRu)}</span>
+      <span class="txt-meta">${esc(t.topic)} · ${t.s.length} предложений${isRead(t.id) ? ' · ✓ прочитано' : ''}</span>
+    </button>`).join('')}</div>`
+    : '<div class="empty"><span class="ico">📚</span>Текстов с такими фильтрами нет</div>';
+
+  $('#readList').querySelectorAll('[data-text]').forEach(b =>
+    b.addEventListener('click', () => openText(b.dataset.text)));
+};
+$('#readLevel').addEventListener('click', e => {
+  const b = e.target.closest('button[data-level]');
+  if (b) { readLevel = b.dataset.level; inits.read(); }
+});
+$('#readTopic').addEventListener('click', e => {
+  const b = e.target.closest('button[data-topic]');
+  if (b) { readTopic = b.dataset.topic; inits.read(); }
+});
+
+/* ---------- сам текст ---------- */
+function openText(id) {
+  openTextId = id;
+  go('text');
+}
+inits.text = function () {
+  hideTip();
+  const t = READ.texts.find(x => x.id === openTextId);
+  if (!t) { go('read'); return; }
+  $('#textTitle').textContent = t.title;
+  $('#textTopic').textContent = `${t.level} · ${t.topic}`;
+  $('#textBody').innerHTML = `<article class="reader">
+      <h2 class="reader-title">${esc(t.title)}</h2>
+      <p class="reader-ru">${esc(t.titleRu)}</p>
+      <p class="reader-text" id="readerText">${t.s.map((_, i) => sentenceHTML(t, i)).join('')}</p>
+      <p class="reader-hint">Наведи на слово — перевод, нажми — послушать.
+         Наведи на точку в конце предложения — перевод всего предложения.</p>
+      <div class="row">
+        <button class="btn ghost" id="readSpeak">🔊 Слушать текст</button>
+        <button class="btn ${isRead(t.id) ? 'ghost' : ''}" id="readDone">
+          ${isRead(t.id) ? '✓ Прочитано' : 'Отметить прочитанным'}</button>
+      </div>
+      <div class="row">
+        <button class="link-btn" id="readPrev">← предыдущий</button>
+        <button class="link-btn" id="readNext">следующий →</button>
+      </div>
+    </article>`;
+
+  const body = $('#textBody');
+  const tipFor = el => {
+    if (el.classList.contains('w')) {
+      const g = glossOf(el.dataset.w);
+      return `<b>${esc(el.textContent)}</b>${g ? ' — ' + esc(g) : ' <span class="muted">— перевода нет</span>'}
+              <span class="tip-hint">нажми, чтобы послушать</span>`;
+    }
+    const ru = t.s[+el.dataset.i][1];
+    return `<b>Перевод предложения</b><span class="tip-sent">${esc(ru)}</span>
+            <span class="tip-hint">нажми, чтобы послушать предложение</span>`;
+  };
+  body.addEventListener('mouseover', e => {
+    const el = e.target.closest('.w, .se');
+    if (el) showTip(el, tipFor(el));
+  });
+  body.addEventListener('mouseout', e => {
+    if (e.target.closest('.w, .se')) hideTip();
+  });
+  body.addEventListener('click', e => {
+    const el = e.target.closest('.w, .se');
+    if (!el) return;
+    showTip(el, tipFor(el));
+    speak(el.classList.contains('w') ? el.textContent : t.s[+el.dataset.i][0]);
+  });
+
+  $('#readSpeak').addEventListener('click', () => speak(t.s.map(x => x[0]).join(' ')));
+  $('#readDone').addEventListener('click', () => {
+    setRead(t.id, !isRead(t.id));
+    inits.text();
+    toast(isRead(t.id) ? 'Текст отмечен прочитанным' : 'Отметка снята');
+  });
+  const idx = READ.texts.indexOf(t);
+  const jump = d => {
+    const n = READ.texts[idx + d];
+    if (n) openText(n.id); else toast(d > 0 ? 'Это последний текст' : 'Это первый текст');
+  };
+  $('#readPrev').addEventListener('click', () => jump(-1));
+  $('#readNext').addEventListener('click', () => jump(1));
+};
 
 /* ==========================================================================
    КЛАВИАТУРА
