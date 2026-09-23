@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Немецкие слова</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇩🇪</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="brand" data-go="home">Немецкие&nbsp;слова</button>
+  <div class="topbar-right">
+    <span class="mini-progress" id="miniProgress"></span>
+    <button class="icon-btn" id="themeBtn" title="Светлая / тёмная тема">◐</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ==================== ГЛАВНЫЙ ЭКРАН ==================== -->
+  <section class="screen" id="screen-home">
+    <div class="hero">
+      <div class="ring" id="homeRing"></div>
+      <div class="hero-text">
+        <h1 id="homeTitle">Привет!</h1>
+        <p class="muted" id="homeSub"></p>
+        <div class="stat-row" id="homeStats"></div>
+      </div>
+    </div>
+
+    <div class="field" id="moduleField">
+      <label class="field-label">Модуль</label>
+      <div class="modules" id="moduleList"></div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Что тренируем</label>
+      <div class="segmented" id="poolFilter">
+        <button data-filter="all" class="active">Все слова</button>
+        <button data-filter="new">Новые</button>
+        <button data-filter="learning">Не выучено</button>
+        <button data-filter="hard">Сложные</button>
+        <button data-filter="starred">⭐ Отмеченные</button>
+      </div>
+      <p class="muted small" id="poolInfo"></p>
+    </div>
+
+    <div class="tiles">
+      <button class="tile primary" data-go="learn">
+        <span class="tile-ico">🎯</span>
+        <span class="tile-name">Заучивание</span>
+        <span class="tile-desc">Адаптивно: от выбора к письму, пока не выучишь</span>
+      </button>
+      <button class="tile" data-go="cards">
+        <span class="tile-ico">🃏</span>
+        <span class="tile-name">Карточки</span>
+        <span class="tile-desc">Переворачивай и вспоминай</span>
+      </button>
+      <button class="tile" data-go="test">
+        <span class="tile-ico">✅</span>
+        <span class="tile-name">Тест</span>
+        <span class="tile-desc">Выбор из четырёх вариантов</span>
+      </button>
+      <button class="tile" data-go="typing">
+        <span class="tile-ico">⌨️</span>
+        <span class="tile-name">Ввод с клавиатуры</span>
+        <span class="tile-desc">Написать слово по-немецки</span>
+      </button>
+      <button class="tile" data-go="match">
+        <span class="tile-ico">⚡</span>
+        <span class="tile-name">Подбор пар</span>
+        <span class="tile-desc">Собрать пары на скорость</span>
+      </button>
+      <button class="tile" data-go="list">
+        <span class="tile-ico">📖</span>
+        <span class="tile-name">Список слов</span>
+        <span class="tile-desc">Все слова, поиск и озвучка</span>
+      </button>
+    </div>
+
+    <div class="home-foot">
+      <button class="link-btn" data-go="add">＋ Добавить слова</button>
+      <button class="link-btn" data-go="settings">⚙ Настройки</button>
+    </div>
+  </section>
+
+  <!-- ==================== ЗАУЧИВАНИЕ ==================== -->
+  <section class="screen" id="screen-learn">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <div class="progress"><div class="progress-fill" id="learnBar"></div></div>
+      <span class="bar-label" id="learnLabel"></span>
+    </div>
+    <div id="learnBody"></div>
+  </section>
+
+  <!-- ==================== КАРТОЧКИ ==================== -->
+  <section class="screen" id="screen-cards">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <div class="progress"><div class="progress-fill" id="cardsBar"></div></div>
+      <span class="bar-label" id="cardsLabel"></span>
+      <button class="icon-btn" id="cardsShuffle" title="Перемешать">🔀</button>
+    </div>
+    <div id="cardsBody"></div>
+  </section>
+
+  <!-- ==================== ТЕСТ ==================== -->
+  <section class="screen" id="screen-test">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <div class="progress"><div class="progress-fill" id="testBar"></div></div>
+      <span class="bar-label" id="testLabel"></span>
+    </div>
+    <div id="testBody"></div>
+  </section>
+
+  <!-- ==================== ВВОД С КЛАВИАТУРЫ ==================== -->
+  <section class="screen" id="screen-typing">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <div class="progress"><div class="progress-fill" id="typingBar"></div></div>
+      <span class="bar-label" id="typingLabel"></span>
+    </div>
+    <div id="typingBody"></div>
+  </section>
+
+  <!-- ==================== ПАРЫ ==================== -->
+  <section class="screen" id="screen-match">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <span class="bar-label big" id="matchTimer">0.0 с</span>
+      <span class="bar-label" id="matchBest"></span>
+      <button class="icon-btn" id="matchRestart" title="Заново">↻</button>
+    </div>
+    <div id="matchBody"></div>
+  </section>
+
+  <!-- ==================== СПИСОК СЛОВ ==================== -->
+  <section class="screen" id="screen-list">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <input type="search" id="listSearch" placeholder="Поиск по слову, переводу, транскрипции…" autocomplete="off">
+    </div>
+    <div class="segmented scroll-x" id="listPos"></div>
+    <div id="listBody"></div>
+  </section>
+
+  <!-- ==================== ДОБАВИТЬ СЛОВА ==================== -->
+  <section class="screen" id="screen-add">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <h2 class="bar-title">Добавить слова</h2>
+    </div>
+    <div class="pane">
+      <label class="field-label">Куда добавить</label>
+      <div class="segmented" id="addTarget"></div>
+
+      <label class="field-label" style="margin-top:16px">Название модуля</label>
+      <input type="text" id="addName" class="text-input" placeholder="Набор 2" autocomplete="off">
+
+      <label class="field-label" style="margin-top:16px">Слова</label>
+      <p class="muted small">По одному в строке. Обязательны первые три части:<br>
+        <code>перевод = Wort | транскри́пция | Мн.ч. | транскри́пция мн.ч.</code><br>
+        <code>дом = Haus | ха́ус | Häuser | хо́йзэр</code><br>
+        <code>окно = Fenster | фэ́нстэр</code></p>
+      <textarea id="addInput" rows="7" placeholder="дом = Haus | ха́ус | Häuser | хо́йзэр"></textarea>
+      <div class="row">
+        <button class="btn" id="addBtn">Собрать код</button>
+        <button class="btn ghost" id="addStressBtn" title="Поставить ударение на выделенную букву">Ударение ́ (Alt+A)</button>
+      </div>
+      <div id="addOut"></div>
+    </div>
+  </section>
+
+  <!-- ==================== НАСТРОЙКИ ==================== -->
+  <section class="screen" id="screen-settings">
+    <div class="bar">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <h2 class="bar-title">Настройки</h2>
+    </div>
+    <div class="pane" id="settingsBody"></div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="words.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
