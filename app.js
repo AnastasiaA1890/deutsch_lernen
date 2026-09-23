@@ -307,19 +307,40 @@ if ('speechSynthesis' in window) {
   pickVoice();
   speechSynthesis.onvoiceschanged = pickVoice;
 }
-function speak(text) {
-  if (!('speechSynthesis' in window) || !text) return;
+let speaking = null, speakDone = null;
+function stopSpeak() {
+  try { speechSynthesis.cancel(); } catch (e) {}
+  const cb = speakDone;
+  speaking = null; speakDone = null;
+  if (cb) cb();
+}
+/* Возвращает true, если начали читать, и false, если это было повторное
+   нажатие по тому же тексту — тогда чтение останавливается. */
+function speak(text, onEnd) {
+  if (!('speechSynthesis' in window) || !text) return false;
   if (!deVoice) pickVoice();
   if (!deVoice) {
     if (!voiceWarned) {
       voiceWarned = true;
       toast('Немецкий голос не установлен: Системные настройки → Универсальный доступ → Устный контент → Системный голос → Управление голосами → немецкий', 7000);
     }
-    return;
+    return false;
   }
-  const u = new SpeechSynthesisUtterance(String(text).replace(/\s*\|\s*/g, ', '));
+  const clean = String(text).replace(/\s*\|\s*/g, ', ');
+  if (speaking === clean) { stopSpeak(); return false; }
+  stopSpeak();
+  const u = new SpeechSynthesisUtterance(clean);
   u.voice = deVoice; u.lang = deVoice.lang; u.rate = S.rate || 0.85;
-  try { speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
+  u.onend = u.onerror = () => {
+    if (speaking !== clean) return;
+    const cb = speakDone;
+    speaking = null; speakDone = null;
+    if (cb) cb();
+  };
+  speaking = clean;
+  speakDone = onEnd || null;
+  try { speechSynthesis.speak(u); } catch (e) { speaking = null; speakDone = null; return false; }
+  return true;
 }
 const speakBtn = text => `<button class="speak" data-speak="${esc(text)}" title="Послушать">🔊</button>`;
 
@@ -365,7 +386,7 @@ function go(name) {
   clearTimeout(advanceTimer);
   hideTip();
   if (current === 'match') stopMatchTimer();
-  if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
+  stopSpeak();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById('screen-' + name);
   if (!el) return;
@@ -1728,7 +1749,8 @@ inits.text = function () {
       <p class="reader-hint">Наведи на слово — перевод, нажми — послушать.
          В подсказке есть кнопка <b>＋ в словарь</b>: слово попадёт в модуль и его
          можно будет учить во всех тренировках.
-         Наведи на точку в конце предложения — перевод всего предложения.</p>
+         Наведи на точку в конце предложения — перевод всего предложения и кнопка
+         озвучки. Повторное нажатие останавливает чтение.</p>
       <div class="row">
         <button class="btn ghost" id="readSpeak">🔊 Слушать текст</button>
         <button class="btn ${isRead(t.id) ? 'ghost' : ''}" id="readDone">
@@ -1752,11 +1774,15 @@ inits.text = function () {
           <button class="tip-btn" data-speak="${esc(form)}">🔊 послушать</button>
           <button class="tip-btn add" data-add="${esc(form)}">＋ в словарь</button>
         </span>
-        <span class="tip-hint">${known ? `«${esc(d.de)}» уже есть в словаре` : 'нажми на слово, чтобы послушать'}</span>`;
+        <span class="tip-hint">${known ? `«${esc(d.de)}» уже есть в словаре`
+          : 'нажми на слово — послушать, ещё раз — остановить'}</span>`;
     }
-    const ru = t.s[+el.dataset.i][1];
-    return `<b>Перевод предложения</b><span class="tip-sent">${esc(ru)}</span>
-            <span class="tip-hint">нажми, чтобы послушать предложение</span>`;
+    const i = +el.dataset.i;
+    return `<b>Перевод предложения</b><span class="tip-sent">${esc(t.s[i][1])}</span>
+      <span class="tip-actions">
+        <button class="tip-btn" data-speak="${esc(t.s[i][0])}">🔊 послушать</button>
+      </span>
+      <span class="tip-hint">нажми ещё раз — чтение остановится</span>`;
   };
   body.addEventListener('mouseover', e => {
     const el = e.target.closest('.w, .se');
@@ -1772,7 +1798,11 @@ inits.text = function () {
     speak(el.classList.contains('w') ? el.textContent : t.s[+el.dataset.i][0]);
   });
 
-  $('#readSpeak').addEventListener('click', () => speak(t.s.map(x => x[0]).join(' ')));
+  $('#readSpeak').addEventListener('click', () => {
+    const btn = $('#readSpeak');
+    const back = () => { btn.textContent = '🔊 Слушать текст'; };
+    btn.textContent = speak(t.s.map(x => x[0]).join(' '), back) ? '⏹ Остановить' : '🔊 Слушать текст';
+  });
   $('#readDone').addEventListener('click', () => {
     setRead(t.id, !isRead(t.id));
     inits.text();
