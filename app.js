@@ -333,7 +333,7 @@ function wordDetails(w) {
 const KIND_TEXT = { de2ru: 'Как переводится?', ru2de: 'Как будет по-немецки?', type: 'Напиши по-немецки' };
 
 /* Рисует вопрос в контейнер. onDone(ok) вызывается после ответа. */
-function renderQuestion(container, q, onDone, extraHTML) {
+function renderQuestion(container, q, onDone, extraHTML, showStage) {
   const w = q.w;
   let answered = false;
   const isDePrompt = q.kind === 'choice' && q.promptField === 'de';
@@ -420,13 +420,22 @@ function renderQuestion(container, q, onDone, extraHTML) {
   }
   function finish(ok) {
     const full = `<b>${esc(w.de)}</b> <span class="muted">(${esc(w.tr)})</span> — ${esc(w.ru)} ${speakBtn(w.de)}`;
+    /* Разбор ответа ждёт нажатия «Дальше» — и когда верно, и когда неверно:
+       сам по себе он не исчезает, чтобы можно было спокойно прочитать слово. */
+    let stageLine = '';
+    if (showStage) {
+      const cur = st(w).stage;
+      const next = ok ? Math.min(3, cur + 1) : Math.max(0, cur - 1);
+      stageLine = next >= 3
+        ? '<div class="q-note">🎉 Слово выучено</div>'
+        : `<div class="q-note">Ступень ${next + 1} из 3${ok ? '' : ' — повторим в этом же раунде'}</div>`;
+    }
     showFb(ok ? 'ok' : 'bad',
-      (ok ? '✓ Верно · ' : '✗ Правильный ответ: ') + full + wordDetails(w) +
-      `<div class="row end"><button class="btn ${ok ? 'ghost' : ''}" id="nextBtn">Дальше →</button></div>`);
+      (ok ? '✓ Верно · ' : '✗ Правильный ответ: ') + full + wordDetails(w) + stageLine +
+      `<div class="row end"><button class="btn" id="nextBtn">Дальше →</button></div>`);
     container.querySelector('#nextBtn').addEventListener('click', next);
     if (S.autoSpeak) speak(w.de);
     container._next = next;
-    if (ok) { advanceTimer = setTimeout(next, 900); }
     function next() {
       clearTimeout(advanceTimer);
       container._next = null;
@@ -489,8 +498,12 @@ inits.learn = function () {
 function learnStep() {
   const body = $('#learnBody');
   const p = learnProgress();
-  $('#learnBar').style.width = p.total ? (p.known / p.total * 100) + '%' : '0%';
-  $('#learnLabel').textContent = `${p.known} / ${p.total}`;
+  /* Наверху — движение по текущему раунду: оно меняется с каждым верным
+     ответом. Общее «выучено» растёт медленнее: слово считается выученным
+     только пройдя все три ступени, поэтому оно вынесено отдельной строкой. */
+  const done = Math.max(0, L.size - L.queue.length);
+  $('#learnBar').style.width = L.size ? (done / L.size * 100) + '%' : '0%';
+  $('#learnLabel').textContent = `${done} / ${L.size}`;
 
   if (!p.total) { body.innerHTML = emptyPool(); return; }
   if (!L.queue.length) { learnDone(); return; }
@@ -504,7 +517,8 @@ function learnStep() {
     if (!ok) { L.wrong++; L.queue.push(w.key); }
     saveLearn();
     learnStep();
-  }, `<div class="q-note">В раунде осталось: ${L.queue.length}</div>`);
+  }, `<div class="q-note">В раунде осталось: ${L.queue.length} · выучено ${p.known} из ${p.total}</div>`,
+     true);
 }
 function learnDone() {
   const p = learnProgress();
