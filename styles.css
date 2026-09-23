@@ -176,6 +176,14 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .answer-row input.wrong{border-color:var(--bad); background:var(--bad-soft)}
 .answer-row input.near{border-color:var(--warn); background:var(--warn-soft)}
 
+.uml-row{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px}
+.uml{
+  min-width:38px; height:38px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:9px; font-size:17px; line-height:1; padding:0 8px;
+}
+.uml:hover{border-color:var(--accent); background:var(--accent-soft)}
+.uml-hint{font-size:12.5px; color:var(--muted); margin-left:4px}
+
 .btn{background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:12px;
   padding:13px 20px; font-size:15.5px; font-weight:550}
 .btn:hover{filter:brightness(1.08)}

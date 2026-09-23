@@ -103,12 +103,24 @@ function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
+/* Приведение ответа к сравнимому виду: регистр, знаки препинания и артикль
+   не важны. Умляуты и ß НЕ трогаем — они должны быть написаны точно. */
 function norm(s) {
   return String(s).toLowerCase()
     .replace(/[.,!?;:()]/g, ' ')
     .replace(/^\s*(der|die|das)\s+/, '')
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/\s+/g, ' ').trim();
+}
+/* «Слепое» сравнение, где ö = oe = o, ü = ue = u, ä = ae = a, ß = ss = s.
+   Нужно, чтобы отличить ошибку именно в умляутах от любой другой. */
+function loose(s) {
+  return norm(s)
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 's')
+    .replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u').replace(/ss/g, 's');
+}
+/* Какие «особые» буквы есть в правильном ответе — для подсказки. */
+function umlautsOf(word) {
+  return [...new Set((String(word).match(/[äöüßÄÖÜ]/g) || []).map(c => c.toLowerCase()))];
 }
 function lev(a, b) {
   if (a === b) return 0;
@@ -137,6 +149,8 @@ function checkTyped(input, w) {
   if (!t) return 'bad';
   const a = accepts(w);
   if (a.includes(t)) return 'ok';
+  const lt = loose(t);
+  if (a.some(x => loose(x) === lt)) return 'umlaut';   // отличие только в умляутах / ß
   if (a.some(x => x.length > 3 && lev(x, t) <= 1)) return 'near';
   return 'bad';
 }
@@ -380,6 +394,10 @@ function renderQuestion(container, q, onDone, extraHTML, showStage) {
                spellcheck="false" placeholder="слово по-немецки" lang="de">
         <button class="btn" id="typeGo">Проверить</button>
       </div>
+      <div class="uml-row">
+        ${['ä','ö','ü','ß','Ä','Ö','Ü'].map(c => `<button type="button" class="uml" data-ch="${c}">${c}</button>`).join('')}
+        <span class="uml-hint">умляуты и ß нужно писать точно</span>
+      </div>
       <div class="row"><button class="link-btn" id="typeSkip">Не знаю, показать ответ</button></div>
       <div class="feedback" id="fb"></div>
       ${extraHTML || ''}
@@ -388,6 +406,16 @@ function renderQuestion(container, q, onDone, extraHTML, showStage) {
     const submit = () => {
       if (answered) return;
       const res = checkTyped(input.value, w);
+      if (res === 'umlaut') {
+        input.classList.add('near');
+        const u = umlautsOf(w.de);
+        showFb('near', u.length
+          ? `Не засчитано: умляуты и ß пишутся точно — «o» не заменяет «ö».
+             В этом слове есть ${u.map(c => `<b>${esc(c)}</b>`).join(', ')}. Попробуй ещё раз.`
+          : 'Не засчитано: в этом слове умляутов нет — проверь буквы и попробуй ещё раз.');
+        input.focus();
+        return;
+      }
       if (res === 'near') {
         input.classList.add('near');
         showFb('near', `Почти! Опечатка — проверь написание и попробуй ещё раз.`);
@@ -399,6 +427,13 @@ function renderQuestion(container, q, onDone, extraHTML, showStage) {
       input.disabled = true;
       finish(res === 'ok');
     };
+    container.querySelectorAll('.uml').forEach(b => b.addEventListener('click', () => {
+      if (input.disabled) return;
+      const p = input.selectionStart, q = input.selectionEnd;
+      input.value = input.value.slice(0, p) + b.dataset.ch + input.value.slice(q);
+      input.selectionStart = input.selectionEnd = p + 1;
+      input.focus();
+    }));
     container.querySelector('#typeGo').addEventListener('click', submit);
     container.querySelector('#typeSkip').addEventListener('click', () => {
       if (answered) return;
@@ -739,7 +774,7 @@ inits.typing = function () {
   $('#typingLabel').textContent = '';
   if (!p.length) { $('#typingBody').innerHTML = emptyPool(); return; }
   $('#typingBody').innerHTML = lengthPicker('Ввод с клавиатуры',
-    'Пиши немецкое слово по русскому переводу. Артикль писать не нужно, ue/oe/ae/ss тоже засчитываются.', p.length);
+    'Пиши немецкое слово по русскому переводу. Артикль писать не нужно, регистр не важен. А вот умляуты и ß — обязательны: «o» вместо «ö» не засчитается.', p.length);
   bindLengthPicker($('#typingBody'), n => { P = { list: shuffle(p).slice(0, n), i: 0, wrong: [], right: 0 }; typingStep(); });
 };
 function typingStep() {
@@ -883,7 +918,7 @@ function renderList() {
   const rows = moduleWords(S.module).filter(w => {
     if (listPos !== 'все' && w.pos !== listPos) return false;
     if (!raw) return true;
-    const hitDe = q && (norm(w.de).includes(q) || norm(w.pl || '').includes(q));
+    const hitDe = q && (loose(w.de).includes(loose(raw)) || loose(w.pl || '').includes(loose(raw)));
     const hitRu = qb && (bare(w.ru).includes(qb) || bare(w.tr).includes(qb) ||
       bare(w.plTr).includes(qb) || bare(w.note).includes(qb) || bare(w.forms).includes(qb));
     return !!(hitDe || hitRu);
