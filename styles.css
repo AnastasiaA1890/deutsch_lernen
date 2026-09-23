@@ -354,7 +354,7 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .se:hover{background:var(--accent); color:#fff}
 
 .tip{
-  position:absolute; z-index:120; max-width:330px; pointer-events:none;
+  position:absolute; z-index:120; max-width:330px;
   background:var(--panel); color:var(--text); border:1px solid var(--line); border-left:3px solid var(--accent);
   border-radius:11px; padding:10px 13px; font-size:14px; line-height:1.5; box-shadow:0 8px 28px rgba(0,0,0,.28);
 }
@@ -378,6 +378,36 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .mistake{background:var(--bad-soft); border-radius:12px; padding:11px 14px; font-size:14.5px}
 .mistake b{font-size:16px}
 .mistake .you{color:var(--bad)}
+
+/* ===== Диалог и «свои» модули ============================================ */
+.modal{position:fixed; inset:0; z-index:200; background:rgba(8,9,14,.55);
+  display:grid; place-items:center; padding:18px; backdrop-filter:blur(3px)}
+.modal[hidden]{display:none}
+.modal-card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:20px 22px; width:min(520px,100%); max-height:88vh; overflow:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.45);
+}
+.modal-title{margin:0 0 6px; font-size:19px}
+.modal-row{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px}
+.modal-row select{width:100%}
+.modal-card .field-label{margin-bottom:5px}
+.modal-card pre.hint{max-height:38vh; overflow:auto}
+
+.tip-actions{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap}
+.tip-btn{
+  background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+  padding:4px 9px; font-size:12.5px; color:var(--text);
+}
+.tip-btn:hover{border-color:var(--accent); background:var(--accent-soft)}
+.tip-btn.add{color:var(--accent); font-weight:600}
+
+.mod-own, .badge{
+  font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase;
+  color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+  border-radius:999px; padding:1px 7px; vertical-align:middle; white-space:nowrap;
+}
+.acts.wrap{flex-wrap:wrap; justify-content:flex-end}
 
 /* ===== Прочее ============================================================ */
 textarea{width:100%; background:var(--panel-2); border:1px solid var(--line); border-radius:12px;

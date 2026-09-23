@@ -6,19 +6,27 @@
 
 /* ---------- данные -------------------------------------------------------- */
 const SETS = window.WORD_SETS || [];
-const MODULES = [];
-const WORDS = [];
-/* Каждый набор из words.js — отдельный модуль со своим прогрессом.
+let MODULES = [];
+let WORDS = [];
+let BY_KEY = new Map();
+/* Модули бывают двух видов: из файла words.js и «свои» — собранные в самом
+   приложении (например, из текстов для чтения) и хранящиеся в браузере.
    Прогресс привязан к ключу «id модуля :: слово|перевод», поэтому одно
    и то же слово в разных модулях учится независимо. */
-SETS.forEach((set, i) => {
-  const id = String(set.id || set.name || ('set' + (i + 1)));
-  const words = (set.words || []).map(w =>
-    Object.assign({}, w, { key: id + '::' + w.de + '|' + w.ru, module: id }));
-  MODULES.push({ id: id, name: set.name || ('Модуль ' + (i + 1)), words: words });
-  WORDS.push.apply(WORDS, words);
-});
-const BY_KEY = new Map(WORDS.map(w => [w.key, w]));
+function rebuildModules() {
+  MODULES = [];
+  WORDS = [];
+  const add = (set, i, own) => {
+    const id = String(set.id || set.name || ('set' + (i + 1)));
+    const words = (set.words || []).map(w =>
+      Object.assign({}, w, { key: id + '::' + w.de + '|' + w.ru, module: id }));
+    MODULES.push({ id: id, name: set.name || ('Модуль ' + (i + 1)), words: words, own: !!own });
+    WORDS.push.apply(WORDS, words);
+  };
+  SETS.forEach((set, i) => add(set, i, false));
+  (S.userSets || []).forEach((set, i) => add(set, i, true));
+  BY_KEY = new Map(WORDS.map(w => [w.key, w]));
+}
 const byKey = k => BY_KEY.get(k);
 const moduleById = id => MODULES.find(m => m.id === id) || null;
 const ALL = 'all';
@@ -34,8 +42,8 @@ function moduleName(id) {
 /* ---------- сохранение ---------------------------------------------------- */
 const LS = 'de-ru-trainer/v1';
 let S = {
-  v: 2, w: {}, match: {}, learns: {},
-  module: MODULES.length ? MODULES[0].id : ALL,
+  v: 2, w: {}, match: {}, learns: {}, userSets: [],
+  module: null,
   filter: 'all', theme: 'auto', rate: 0.85, autoSpeak: false, alwaysTr: true
 };
 function load() {
@@ -43,9 +51,133 @@ function load() {
     const raw = localStorage.getItem(LS);
     if (raw) S = Object.assign(S, JSON.parse(raw));
   } catch (e) { /* приватное окно — работаем без сохранения */ }
+  if (!Array.isArray(S.userSets)) S.userSets = [];
+  rebuildModules();
   migrate();
-  if (S.module !== ALL && !moduleById(S.module)) S.module = MODULES.length ? MODULES[0].id : ALL;
+  if (S.module == null || (S.module !== ALL && !moduleById(S.module))) {
+    S.module = MODULES.length ? MODULES[0].id : ALL;
+  }
   if (!S.learns) S.learns = {};
+}
+
+/* ---------- свои модули: живут в localStorage, редактируются из приложения */
+function ownSets() { return S.userSets || (S.userSets = []); }
+function createOwnSet(name) {
+  const set = { id: 'u' + Date.now().toString(36), name: String(name || '').trim() || 'Мои слова', words: [] };
+  ownSets().push(set);
+  save(); rebuildModules();
+  return set;
+}
+function ownSetById(id) { return ownSets().find(s => s.id === id) || null; }
+function addWordToOwnSet(setId, word) {
+  const set = ownSetById(setId);
+  if (!set) return 'нет такого модуля';
+  if (set.words.some(w => w.de === word.de && w.ru === word.ru)) return 'уже есть';
+  set.words.push(word);
+  save(); rebuildModules();
+  return '';
+}
+function deleteOwnSet(id) {
+  const set = ownSetById(id);
+  if (!set) return;
+  set.words.forEach(w => { delete S.w[id + '::' + w.de + '|' + w.ru]; });
+  S.userSets = ownSets().filter(s => s.id !== id);
+  delete S.learns[id];
+  Object.keys(S.match).forEach(k => { if (k.indexOf(id + '/') === 0) delete S.match[k]; });
+  if (S.module === id) S.module = MODULES[0] ? MODULES[0].id : ALL;
+  save(); rebuildModules();
+}
+
+/* ---------- черновая транскрипция: те же правила, что в tools/pdf_to_words.py,
+   но в стиле уже записанных слов: без оглушения на конце, ch → х ---------- */
+const TR_VOWELS = 'aeiouäöüy';
+const TR_J = { ja: 'я', je: 'е', jo: 'ё', ju: 'ю', ji: 'и', jä: 'е', jü: 'ю' };
+const TR_SIMPLE = {
+  a: 'а', e: 'э', i: 'и', o: 'о', u: 'у', ä: 'э', ö: 'ё', ü: 'ю', y: 'ю', ß: 'с',
+  b: 'б', c: 'к', d: 'д', f: 'ф', g: 'г', h: 'х', j: 'й', k: 'к', l: 'л', m: 'м',
+  n: 'н', p: 'п', q: 'к', r: 'р', t: 'т', v: 'ф', w: 'в', x: 'кс', z: 'ц',
+  'é': 'е', 'è': 'е'
+};
+function autoTr(word) {
+  const w = String(word || '').toLowerCase().trim();
+  const out = [];
+  let i = 0, start = true, seenVowel = false;
+  while (i < w.length) {
+    const three = w.slice(i, i + 3), two = w.slice(i, i + 2), ch = w[i];
+    const next = w[i + 1] || '', prev = i ? w[i - 1] : '';
+    if (three === 'sch') { out.push('ш'); i += 3; }
+    else if (three === 'chs') { out.push('кс'); i += 3; }
+    else if (two === 'ch') { out.push('х'); i += 2; }
+    else if (two === 'ck') { out.push('к'); i += 2; }
+    else if (two === 'tz') { out.push('ц'); i += 2; }
+    else if (two === 'dt') { out.push('т'); i += 2; }
+    else if (two === 'ei' || two === 'ai') { out.push('ай'); seenVowel = true; i += 2; }
+    else if (two === 'ie') { out.push('и'); seenVowel = true; i += 2; }
+    else if (two === 'eu' || two === 'äu') { out.push('ой'); seenVowel = true; i += 2; }
+    else if (two === 'au') { out.push('ау'); seenVowel = true; i += 2; }
+    else if (two === 'qu') { out.push('кв'); i += 2; }
+    else if (two === 'ph') { out.push('ф'); i += 2; }
+    else if (two === 'th') { out.push('т'); i += 2; }
+    else if (two === 'ng') { out.push('нг'); i += 2; }
+    else if (two === 'ss') { out.push('с'); i += 2; }
+    else if (two[0] === two[1] && 'aeo'.indexOf(two[0]) >= 0) {
+      out.push({ a: 'а', e: seenVowel ? 'э' : 'е', o: 'о' }[two[0]]); seenVowel = true; i += 2;
+    }
+    else if (two === 'st' && start) { out.push('шт'); i += 2; }
+    else if (two === 'sp' && start) { out.push('шп'); i += 2; }
+    else if (TR_J[two]) { out.push(TR_J[two]); seenVowel = true; i += 2; }
+    else if (two === 'er' && i + 2 === w.length) { out.push('эр'); i += 2; }
+    else if (two === 'en' && i + 2 === w.length) { out.push('эн'); i += 2; }
+    else if (two === 'el' && i + 2 === w.length) { out.push('эль'); i += 2; }
+    else if (ch === 'h' && prev && TR_VOWELS.indexOf(prev) >= 0) { i += 1; }
+    else if (ch === next && TR_VOWELS.indexOf(ch) < 0) { i += 1; }
+    else if (ch === 'e') {
+      out.push(!seenVowel && 'лр'.indexOf(out[out.length - 1]) >= 0 ? 'е' : 'э');
+      seenVowel = true; i += 1;
+    }
+    else if (ch === 's') { out.push(next && TR_VOWELS.indexOf(next) >= 0 ? 'з' : 'с'); i += 1; }
+    else {
+      out.push(TR_SIMPLE[ch] !== undefined ? TR_SIMPLE[ch] : ch);
+      if (TR_VOWELS.indexOf(ch) >= 0) seenVowel = true;
+      i += 1;
+    }
+    start = false;
+  }
+  return trStress(out.join(''), w);
+}
+const TR_PREFIX = ['be', 'ge', 'ver', 'er', 'ent', 'emp', 'zer'];
+const TR_TAIL = ['ion', 'ität', 'ieren', 'ei', 'ie'];
+function trStress(rus, orig) {
+  const pos = [];
+  for (let i = 0; i < rus.length; i++) if ('аеёиоуыэюя'.indexOf(rus[i]) >= 0) pos.push(i);
+  if (pos.length < 2) return rus;
+  let idx = 0;
+  if (TR_PREFIX.some(p => orig.indexOf(p) === 0)) idx = 1;
+  if (TR_TAIL.some(t => orig.slice(-t.length) === t)) idx = pos.length - 1;
+  const at = pos[idx];
+  if (rus[at] === 'ё') return rus;
+  return rus.slice(0, at + 1) + '\u0301' + rus.slice(at + 1);
+}
+
+/* Из подсказки «кофе (der Kaffee)» делаем заготовку карточки: Kaffee — кофе. */
+function cardDraft(form, gloss) {
+  let de = form, ru = gloss || '';
+  const m = (gloss || '').match(/\(([^)]+)\)/);
+  if (m) {
+    const inner = m[1].trim();
+    let cand = null, mm;
+    if ((mm = inner.match(/^(?:der|die|das)\s+([A-ZÄÖÜ][^\s,;]*)$/))) cand = mm[1];
+    else if ((mm = inner.match(/(?:мн\.\s*ч\.\s*от|от)\s+([A-Za-zÄÖÜäöüß][^\s,;]*)/))) cand = mm[1];
+    else if (/^[a-zäöüß]+n$/.test(inner)) cand = inner;
+    else if ((mm = inner.match(/^([a-zäöüß]+n)\b/))) cand = mm[1];
+    if (cand) de = cand;
+    const head = (gloss || '').slice(0, m.index).trim().replace(/[;,]$/, '');
+    if (head) ru = head;
+  }
+  let pos = 'сущ.';
+  if (/^[a-zäöüß]+(en|ern|eln)$/.test(de)) pos = 'глаг.';
+  else if (/^[a-zäöüß]/.test(de)) pos = 'прил.';
+  return { de: de, ru: ru, pos: pos, tr: autoTr(de) };
 }
 /* Прогресс первой версии хранился без модулей: ключи вида «Haus|дом».
    Переносим их в первый модуль. Смотрим на форму самих данных, а не на
@@ -262,8 +394,9 @@ function renderModules() {
   const card = (id, name, list) => {
     const c = counts(list);
     const pct = c.total ? Math.round(c.known / c.total * 100) : 0;
+    const own = (moduleById(id) || {}).own;
     return `<button class="mod ${S.module === id ? 'active' : ''}" data-module="${esc(id)}">
-      <span class="mod-name">${esc(name)}</span>
+      <span class="mod-name">${esc(name)}${own ? ' <span class="mod-own">в браузере</span>' : ''}</span>
       <span class="mod-stat">${c.total} слов · выучено ${c.known}</span>
       <span class="mod-bar"><span style="width:${pct}%"></span></span>
     </button>`;
@@ -964,7 +1097,7 @@ let addTarget = 'new';
 inits.add = function () {
   $('#addTarget').innerHTML =
     `<button data-t="new" class="${addTarget === 'new' ? 'active' : ''}">＋ Новый модуль</button>` +
-    MODULES.map(m => `<button data-t="${esc(m.id)}" class="${addTarget === m.id ? 'active' : ''}">${esc(m.name)}</button>`).join('');
+    MODULES.map(m => `<button data-t="${esc(m.id)}" class="${addTarget === m.id ? 'active' : ''}">${esc(m.name)}${m.own ? ' ·&nbsp;в&nbsp;браузере' : ''}</button>`).join('');
   $('#addName').style.display = addTarget === 'new' ? '' : 'none';
   $('#addName').previousElementSibling.style.display = addTarget === 'new' ? '' : 'none';
   if (!$('#addName').value) $('#addName').value = 'Набор ' + (MODULES.length + 1);
@@ -997,6 +1130,28 @@ function parseAddLines(text) {
 
 $('#addBtn').addEventListener('click', () => {
   const { rows, bad } = parseAddLines($('#addInput').value);
+
+  /* Модуль из браузера можно наполнить прямо здесь — без правки файла. */
+  const own = ownSetById(addTarget);
+  if (own && rows.length) {
+    let added = 0, dup = 0;
+    rows.forEach(parts => {
+      const w = {};
+      parts.forEach(p => {
+        const i = p.indexOf(': ');
+        w[p.slice(0, i)] = JSON.parse(p.slice(i + 2));
+      });
+      if (addWordToOwnSet(own.id, w)) dup++; else added++;
+    });
+    $('#addInput').value = '';
+    inits.add();
+    $('#addOut').innerHTML = `<p class="small">Добавлено в «${esc(own.name)}»: <b>${added}</b>${
+      dup ? `, уже было: ${dup}` : ''}${bad.length ? `. Не разобрано: ${bad.map(esc).join('; ')}` : ''}</p>`;
+    updateMini();
+    toast(`Добавлено слов: ${added}`);
+    return;
+  }
+
   let code = '', hint = '';
   if (rows.length) {
     if (addTarget === 'new') {
@@ -1009,7 +1164,7 @@ $('#addBtn').addEventListener('click', () => {
     } else {
       code = rows.map(o => '  { ' + o.join(', ') + ' },').join('\n');
       hint = 'Вставь эти строки в <code>words.js</code> внутрь модуля «' + esc(moduleName(addTarget)) +
-        '», перед его закрывающей скобкой <code>]</code>.';
+        '», перед его закрывающей скобкой <code>]</code>. Модуль из браузера пополняется сразу, без кода.';
     }
   }
   $('#addOut').innerHTML = `
@@ -1075,9 +1230,13 @@ inits.settings = function () {
     ${MODULES.map(m => {
       const mc = counts(m.words);
       return `<div class="set-row">
-        <div><div class="t">${esc(m.name)}</div>
+        <div><div class="t">${esc(m.name)}${m.own ? ' <span class="badge">в браузере</span>' : ''}</div>
         <div class="d">${mc.total} слов · выучено ${mc.known}, в работе ${mc.learning}, новых ${mc.fresh}</div></div>
-        <button class="btn ghost danger" data-reset="${esc(m.id)}">Сбросить</button>
+        <div class="acts wrap">
+          ${m.own ? `<button class="btn ghost small" data-export="${esc(m.id)}">Выгрузить в words.js</button>
+                     <button class="btn ghost small danger" data-drop="${esc(m.id)}">Удалить</button>` : ''}
+          <button class="btn ghost small danger" data-reset="${esc(m.id)}">Сбросить прогресс</button>
+        </div>
       </div>`;
     }).join('')}
     <div class="set-row">
@@ -1090,6 +1249,16 @@ inits.settings = function () {
     </div>
     <p class="muted small" style="margin-top:14px">Прогресс хранится только в этом браузере, на этом компьютере. У каждого модуля он свой.</p>`;
 
+  $('#settingsBody').querySelectorAll('[data-export]').forEach(b =>
+    b.addEventListener('click', () => exportOwnSet(b.dataset.export)));
+  $('#settingsBody').querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => {
+    const set = ownSetById(b.dataset.drop);
+    if (!set) return;
+    if (!confirm(`Удалить модуль «${set.name}» вместе с его ${set.words.length} словами и прогрессом? Отменить будет нельзя.`)) return;
+    deleteOwnSet(set.id);
+    inits.settings(); updateMini();
+    toast('Модуль удалён');
+  }));
   $('#settingsBody').querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => {
     const m = moduleById(b.dataset.reset);
     if (!m || !confirm(`Сбросить прогресс модуля «${m.name}»? Отменить будет нельзя.`)) return;
@@ -1478,7 +1647,9 @@ function sentenceHTML(t, i) {
 }
 
 /* ---------- всплывающая подсказка ---------- */
+let tipTimer = null;
 function showTip(target, html) {
+  clearTimeout(tipTimer);
   const tip = $('#tip');
   tip.innerHTML = html;
   tip.hidden = false;
@@ -1491,7 +1662,11 @@ function showTip(target, html) {
   tip.style.left = left + 'px';
   tip.style.top = top + 'px';
 }
-function hideTip() { const t = $('#tip'); if (t) t.hidden = true; }
+function hideTip() { clearTimeout(tipTimer); const t = $('#tip'); if (t) t.hidden = true; }
+/* Прячем не сразу: иначе не успеть довести курсор до кнопок в подсказке. */
+function hideTipSoon() { clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 260); }
+$('#tip').addEventListener('mouseenter', () => clearTimeout(tipTimer));
+$('#tip').addEventListener('mouseleave', hideTip);
 window.addEventListener('scroll', hideTip, { passive: true });
 
 /* ---------- список текстов ---------- */
@@ -1551,6 +1726,8 @@ inits.text = function () {
       <p class="reader-ru">${esc(t.titleRu)}</p>
       <p class="reader-text" id="readerText">${t.s.map((_, i) => sentenceHTML(t, i)).join('')}</p>
       <p class="reader-hint">Наведи на слово — перевод, нажми — послушать.
+         В подсказке есть кнопка <b>＋ в словарь</b>: слово попадёт в модуль и его
+         можно будет учить во всех тренировках.
          Наведи на точку в конце предложения — перевод всего предложения.</p>
       <div class="row">
         <button class="btn ghost" id="readSpeak">🔊 Слушать текст</button>
@@ -1566,9 +1743,16 @@ inits.text = function () {
   const body = $('#textBody');
   const tipFor = el => {
     if (el.classList.contains('w')) {
+      const form = el.textContent;
       const g = glossOf(el.dataset.w);
-      return `<b>${esc(el.textContent)}</b>${g ? ' — ' + esc(g) : ' <span class="muted">— перевода нет</span>'}
-              <span class="tip-hint">нажми, чтобы послушать</span>`;
+      const d = cardDraft(form, g);
+      const known = WORDS.some(w => w.de.toLowerCase() === d.de.toLowerCase());
+      return `<b>${esc(form)}</b>${g ? ' — ' + esc(g) : ' <span class="muted">— перевода нет</span>'}
+        <span class="tip-actions">
+          <button class="tip-btn" data-speak="${esc(form)}">🔊 послушать</button>
+          <button class="tip-btn add" data-add="${esc(form)}">＋ в словарь</button>
+        </span>
+        <span class="tip-hint">${known ? `«${esc(d.de)}» уже есть в словаре` : 'нажми на слово, чтобы послушать'}</span>`;
     }
     const ru = t.s[+el.dataset.i][1];
     return `<b>Перевод предложения</b><span class="tip-sent">${esc(ru)}</span>
@@ -1579,7 +1763,7 @@ inits.text = function () {
     if (el) showTip(el, tipFor(el));
   });
   body.addEventListener('mouseout', e => {
-    if (e.target.closest('.w, .se')) hideTip();
+    if (e.target.closest('.w, .se')) hideTipSoon();
   });
   body.addEventListener('click', e => {
     const el = e.target.closest('.w, .se');
@@ -1603,6 +1787,133 @@ inits.text = function () {
   $('#readNext').addEventListener('click', () => jump(1));
 };
 
+
+/* ---------- диалог «добавить слово в модуль» ---------- */
+function closeModal() {
+  $('#modal').hidden = true;
+  $('#modalCard').innerHTML = '';
+}
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+
+function openAddWordModal(form) {
+  const d = cardDraft(form, glossOf(form));
+  const sets = ownSets();
+  const last = sets.some(x => x.id === S.lastOwnSet) ? S.lastOwnSet : (sets[0] ? sets[0].id : 'new');
+  const POS = ['сущ.', 'глаг.', 'прил.', 'нареч.', 'мест.', 'предл.', 'част.', 'числ.', 'фраза'];
+
+  $('#modalCard').innerHTML = `
+    <h3 class="modal-title">Добавить слово в модуль</h3>
+    <p class="muted small">Из текста: <b>${esc(form)}</b>. Проверь заготовку — транскрипция
+       подставлена автоматически, ударение стоит по общему правилу.</p>
+    <label class="field-label">Немецкое слово</label>
+    <input class="text-input" id="awDe" value="${esc(d.de)}" autocomplete="off" spellcheck="false">
+    <label class="field-label" style="margin-top:12px">Транскрипция</label>
+    <input class="text-input" id="awTr" value="${esc(d.tr)}" autocomplete="off" spellcheck="false">
+    <div class="uml-row">
+      ${['а́','е́','и́','о́','у́','ы́','э́','ю́','я́'].map(c => `<button type="button" class="uml" data-ins="${c}">${c}</button>`).join('')}
+      <span class="uml-hint">гласная с ударением</span>
+    </div>
+    <label class="field-label" style="margin-top:12px">Перевод</label>
+    <input class="text-input" id="awRu" value="${esc(d.ru)}" autocomplete="off">
+    <div class="modal-row">
+      <div>
+        <label class="field-label">Часть речи</label>
+        <select id="awPos">${POS.map(p => `<option ${p === d.pos ? 'selected' : ''}>${p}</option>`).join('')}</select>
+      </div>
+      <div>
+        <label class="field-label">Модуль</label>
+        <select id="awSet">
+          ${sets.map(x => `<option value="${esc(x.id)}" ${x.id === last ? 'selected' : ''}>${esc(x.name)} (${x.words.length})</option>`).join('')}
+          <option value="new" ${last === 'new' ? 'selected' : ''}>＋ новый модуль…</option>
+        </select>
+      </div>
+    </div>
+    <div id="awNameBox" ${last === 'new' ? '' : 'hidden'}>
+      <label class="field-label" style="margin-top:12px">Название нового модуля</label>
+      <input class="text-input" id="awName" value="Слова из текстов" autocomplete="off">
+    </div>
+    <p class="muted small" style="margin-top:12px">Такой модуль хранится в браузере и сразу
+       доступен во всех тренировках. Чтобы сохранить его насовсем, выгрузи его
+       в <code>words.js</code> в ⚙ Настройках.</p>
+    <div class="row end">
+      <button class="btn ghost" id="awCancel">Отмена</button>
+      <button class="btn" id="awOk">Добавить</button>
+    </div>`;
+  $('#modal').hidden = false;
+
+  const setSel = $('#awSet');
+  setSel.addEventListener('change', () => {
+    $('#awNameBox').hidden = setSel.value !== 'new';
+  });
+  $('#modalCard').querySelectorAll('[data-ins]').forEach(b => b.addEventListener('click', () => {
+    const inp = $('#awTr');
+    const p = inp.selectionStart;
+    inp.value = inp.value.slice(0, p) + b.dataset.ins + inp.value.slice(inp.selectionEnd);
+    inp.selectionStart = inp.selectionEnd = p + b.dataset.ins.length;
+    inp.focus();
+  }));
+  $('#awCancel').addEventListener('click', closeModal);
+  $('#awOk').addEventListener('click', () => {
+    const word = {
+      de: $('#awDe').value.trim(),
+      tr: $('#awTr').value.trim(),
+      ru: $('#awRu').value.trim(),
+      pos: $('#awPos').value
+    };
+    if (!word.de || !word.tr || !word.ru) { toast('Заполни слово, транскрипцию и перевод'); return; }
+    let setId = setSel.value;
+    if (setId === 'new') setId = createOwnSet($('#awName').value).id;
+    const err = addWordToOwnSet(setId, word);
+    S.lastOwnSet = setId;
+    save();
+    closeModal();
+    hideTip();
+    const name = (ownSetById(setId) || {}).name || '';
+    toast(err === 'уже есть' ? `«${word.de}» уже есть в модуле «${name}»`
+                             : `«${word.de}» добавлено в «${name}»`);
+  });
+  setTimeout(() => $('#awDe').focus(), 40);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-add]');
+  if (b) { e.stopPropagation(); openAddWordModal(b.dataset.add); }
+});
+
+
+/* Свой модуль живёт в браузере. Эта кнопка превращает его в кусок кода,
+   который можно вставить в words.js и хранить уже насовсем. */
+function exportOwnSet(id) {
+  const set = ownSetById(id);
+  if (!set) return;
+  const rows = set.words.map(w => {
+    const parts = [`de: ${JSON.stringify(w.de)}`, `tr: ${JSON.stringify(w.tr)}`,
+                   `ru: ${JSON.stringify(w.ru)}`, `pos: ${JSON.stringify(w.pos || 'сущ.')}`];
+    if (w.pl) parts.push(`pl: ${JSON.stringify(w.pl)}`);
+    if (w.plTr) parts.push(`plTr: ${JSON.stringify(w.plTr)}`);
+    if (w.note) parts.push(`note: ${JSON.stringify(w.note)}`);
+    return '    { ' + parts.join(', ') + ' },';
+  });
+  const code = '{\n  id: ' + JSON.stringify(set.id) + ',\n  name: ' + JSON.stringify(set.name) +
+    ',\n  words: [\n' + rows.join('\n') + '\n  ]\n},';
+  $('#modalCard').innerHTML = `
+    <h3 class="modal-title">Модуль «${esc(set.name)}» — код для words.js</h3>
+    <p class="muted small">Вставь этот блок в <code>words.js</code> перед самой последней
+       скобкой <code>]</code> и обнови страницу. Прогресс сохранится: <code>id</code> тот же.
+       После этого модуль из браузера можно удалить.</p>
+    <pre class="hint">${esc(code)}</pre>
+    <div class="row end">
+      <button class="btn ghost" id="exClose">Закрыть</button>
+      <button class="btn" id="exCopy">Скопировать</button>
+    </div>`;
+  $('#modal').hidden = false;
+  $('#exClose').addEventListener('click', closeModal);
+  $('#exCopy').addEventListener('click', () => {
+    navigator.clipboard.writeText(code).then(
+      () => toast('Скопировано — вставь в words.js'),
+      () => toast('Не удалось скопировать, выдели текст вручную'));
+  });
+}
+
 /* ==========================================================================
    КЛАВИАТУРА
    ========================================================================== */
@@ -1612,6 +1923,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); insertStress(); return;
   }
   if (e.key === 'Escape') {
+    if (!$('#modal').hidden) { closeModal(); return; }
     if (typingInField) { document.activeElement.blur(); return; }
     if (current !== 'home') { go('home'); }
     return;
