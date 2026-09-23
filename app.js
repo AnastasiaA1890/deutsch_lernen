@@ -297,6 +297,12 @@ inits.home = function () {
   document.querySelectorAll('#poolFilter button').forEach(b => {
     b.classList.toggle('active', b.dataset.filter === S.filter);
   });
+  const nv = verbsOfModule().length;
+  $('#conjTile').disabled = !nv;
+  $('#conjTileDesc').textContent = nv
+    ? `${nv} ${plural(nv, 'глагол', 'глагола', 'глаголов')} · окончания по лицам`
+    : 'в этом модуле нет глаголов';
+
   const p = pool();
   const pc = counts(p);
   $('#poolInfo').textContent = p.length
@@ -1103,6 +1109,324 @@ inits.settings = function () {
     toast('Прогресс сброшен');
   });
 };
+
+
+/* ==========================================================================
+   СПРЯЖЕНИЕ ГЛАГОЛОВ (Präsens)
+   ========================================================================== */
+const PRONOUNS = [
+  { key: 'ich', de: 'Ich', ru: 'я' },
+  { key: 'du',  de: 'Du',  ru: 'ты' },
+  { key: 'er',  de: 'Er',  ru: 'он, она, оно' },
+  { key: 'wir', de: 'Wir', ru: 'мы' },
+  { key: 'ihr', de: 'Ihr', ru: 'вы' },
+  { key: 'sie', de: 'Sie', ru: 'они, Вы' }
+];
+
+/* Полностью неправильные — таблицей целиком. */
+const IRREGULAR = {
+  'sein':   { ich: 'bin',   du: 'bist',   er: 'ist',   wir: 'sind',   ihr: 'seid',  sie: 'sind' },
+  'haben':  { ich: 'habe',  du: 'hast',   er: 'hat',   wir: 'haben',  ihr: 'habt',  sie: 'haben' },
+  'werden': { ich: 'werde', du: 'wirst',  er: 'wird',  wir: 'werden', ihr: 'werdet', sie: 'werden' },
+  'wissen': { ich: 'weiß',  du: 'weißt',  er: 'weiß',  wir: 'wissen', ihr: 'wisst', sie: 'wissen' },
+  'können': { ich: 'kann',  du: 'kannst', er: 'kann',  wir: 'können', ihr: 'könnt', sie: 'können' },
+  'müssen': { ich: 'muss',  du: 'musst',  er: 'muss',  wir: 'müssen', ihr: 'müsst', sie: 'müssen' },
+  'wollen': { ich: 'will',  du: 'willst', er: 'will',  wir: 'wollen', ihr: 'wollt', sie: 'wollen' },
+  'sollen': { ich: 'soll',  du: 'sollst', er: 'soll',  wir: 'sollen', ihr: 'sollt', sie: 'sollen' },
+  'dürfen': { ich: 'darf',  du: 'darfst', er: 'darf',  wir: 'dürfen', ihr: 'dürft', sie: 'dürfen' },
+  'mögen':  { ich: 'mag',   du: 'magst',  er: 'mag',   wir: 'mögen',  ihr: 'mögt',  sie: 'mögen' },
+  'tun':    { ich: 'tue',   du: 'tust',   er: 'tut',   wir: 'tun',    ihr: 'tut',   sie: 'tun' }
+};
+
+/* Меняется гласная в основе — только du и er: [du, er, подсказка]. */
+const STEM_CHANGE = {
+  'sehen': ['siehst', 'sieht', 'e → ie'],       'lesen': ['liest', 'liest', 'e → ie'],
+  'empfehlen': ['empfiehlst', 'empfiehlt', 'e → ie'],
+  'sprechen': ['sprichst', 'spricht', 'e → i'], 'essen': ['isst', 'isst', 'e → i'],
+  'geben': ['gibst', 'gibt', 'e → i'],          'helfen': ['hilfst', 'hilft', 'e → i'],
+  'nehmen': ['nimmst', 'nimmt', 'e → i'],       'treffen': ['triffst', 'trifft', 'e → i'],
+  'werfen': ['wirfst', 'wirft', 'e → i'],       'vergessen': ['vergisst', 'vergisst', 'e → i'],
+  'brechen': ['brichst', 'bricht', 'e → i'],    'sterben': ['stirbst', 'stirbt', 'e → i'],
+  'fahren': ['fährst', 'fährt', 'a → ä'],       'fallen': ['fällst', 'fällt', 'a → ä'],
+  'halten': ['hältst', 'hält', 'a → ä'],        'lassen': ['lässt', 'lässt', 'a → ä'],
+  'schlafen': ['schläfst', 'schläft', 'a → ä'], 'tragen': ['trägst', 'trägt', 'a → ä'],
+  'waschen': ['wäschst', 'wäscht', 'a → ä'],    'wachsen': ['wächst', 'wächst', 'a → ä'],
+  'schlagen': ['schlägst', 'schlägt', 'a → ä'], 'fangen': ['fängst', 'fängt', 'a → ä'],
+  'raten': ['rätst', 'rät', 'a → ä'],           'braten': ['brätst', 'brät', 'a → ä'],
+  'laufen': ['läufst', 'läuft', 'au → äu'],     'saufen': ['säufst', 'säuft', 'au → äu'],
+  'stoßen': ['stößt', 'stößt', 'o → ö']
+};
+
+/* Нужна ли соединительная «e»: arbeiten → du arbeitest, но wohnen → du wohnst. */
+function needsLinkE(stem) {
+  if (/[dt]$/.test(stem)) return true;
+  const m = stem.match(/(.)[mn]$/);
+  if (!m) return false;
+  const c = m[1];
+  if ('lrmn'.indexOf(c) >= 0) return false;
+  if (/[aeiouäöüy]/.test(c)) return false;
+  if (c === 'h') return !/[aeiouäöüy]/.test(stem.slice(-3, -2));  // wohnen ≠ rechnen
+  return true;
+}
+
+/* Формы настоящего времени. w — слово из словаря либо строка-инфинитив. */
+function conjugate(w) {
+  const inf = String(typeof w === 'string' ? w : w.de).trim();
+  const low = inf.toLowerCase();
+  let forms, meta;
+  if (/eln$/.test(low)) {
+    const stem = inf.slice(0, -1);                                  // sammeln → sammel
+    forms = { ich: stem.slice(0, -2) + 'le', du: stem + 'st', er: stem + 't',
+              wir: inf, ihr: stem + 't', sie: inf };                // ich sammle
+    meta = { kind: 'eln', stem: stem, linkE: false, sibilant: false };
+  } else if (/ern$/.test(low)) {
+    const stem = inf.slice(0, -1);                                  // wandern → wander
+    forms = { ich: stem + 'e', du: stem + 'st', er: stem + 't',
+              wir: inf, ihr: stem + 't', sie: inf };
+    meta = { kind: 'ern', stem: stem, linkE: false, sibilant: false };
+  } else {
+    const stem = /en$/.test(low) ? inf.slice(0, -2) : inf.slice(0, -1);
+    const e = needsLinkE(stem.toLowerCase());
+    const sibilant = /[sßxz]$/.test(stem.toLowerCase());
+    forms = {
+      ich: stem + 'e',
+      du:  stem + (e ? 'est' : sibilant ? 't' : 'st'),
+      er:  stem + (e ? 'et' : 't'),
+      wir: inf,
+      ihr: stem + (e ? 'et' : 't'),
+      sie: inf
+    };
+    meta = { kind: 'plain', stem: stem, linkE: e, sibilant: sibilant };
+  }
+  let hint = '';
+  const sc = STEM_CHANGE[low];
+  if (sc) { forms.du = sc[0]; forms.er = sc[1]; hint = sc[2]; }
+  meta.change = hint;
+  meta.irregular = !!IRREGULAR[low];
+  if (IRREGULAR[low]) { forms = Object.assign(forms, IRREGULAR[low]); hint = 'особая форма'; }
+  if (w && w.conj) forms = Object.assign(forms, w.conj);
+  meta.inf = inf;
+  return { forms: forms, hint: hint, meta: meta };
+}
+
+const PERSON_NAME = {
+  ich: '1-е лицо, единственное число',
+  du:  '2-е лицо, единственное число',
+  er:  '3-е лицо, единственное число',
+  wir: '1-е лицо, множественное число',
+  ihr: '2-е лицо, множественное число',
+  sie: '3-е лицо мн. ч. и вежливое «Sie»'
+};
+
+/* Объяснение: почему у этого лица именно такая форма. */
+function conjRule(w, key) {
+  const c = conjugate(w);
+  const m = c.meta, form = c.forms[key], stem = esc(m.stem), inf = esc(m.inf);
+  const B = x => `<b>${esc(x)}</b>`;
+  const out = [`${B(PERSON_NAME[key])}`];
+
+  if (m.irregular) {
+    out.push(`${B(m.inf)} — неправильный глагол: формы не выводятся по правилу,
+      их запоминают целиком. Здесь — ${B(form)}.`);
+    return out.join('<br>');
+  }
+  if (key === 'wir' || key === 'sie') {
+    out.push(`Совпадает с инфинитивом — окончание ${B('-en')} не меняется: ${B(form)}.`);
+    if (m.change) out.push(`Чередование ${B(m.change)} бывает только у du и er.`);
+    return out.join('<br>');
+  }
+  if (key === 'ich') {
+    if (m.kind === 'eln') {
+      out.push(`У глаголов на ${B('-eln')} в форме ich выпадает «e» перед l:
+        ${inf} → ${B(form)}.`);
+    } else {
+      out.push(`К основе ${B(m.stem)} прибавляется окончание ${B('-e')} → ${B(form)}.`);
+    }
+    if (m.change) out.push(`Чередование ${B(m.change)} у ich не происходит — основа обычная.`);
+    return out.join('<br>');
+  }
+  if (key === 'du') {
+    if (m.sibilant) {
+      out.push(`Основа ${B(m.stem)} оканчивается на ${B('-s / -ß / -z')}, поэтому
+        у du окончание только ${B('-t')}, а не -st.`);
+    } else if (m.linkE) {
+      out.push(`Основа ${B(m.stem)} оканчивается на ${B('-t / -d')} (или согласную + m/n),
+        поэтому перед окончанием вставляется соединительное ${B('-e-')}: ${B('-est')}.`);
+    } else {
+      out.push(`К основе ${B(m.stem)} прибавляется окончание ${B('-st')}.`);
+    }
+    if (m.change) out.push(`Плюс у du и er меняется корневая гласная: ${B(m.change)} → ${B(form)}.`);
+    return out.join('<br>');
+  }
+  if (key === 'er') {
+    out.push(m.linkE
+      ? `Основа ${B(m.stem)} оканчивается на ${B('-t / -d')}, поэтому окончание ${B('-et')}.`
+      : `К основе ${B(m.stem)} прибавляется окончание ${B('-t')}.`);
+    if (m.change) out.push(`Плюс у du и er меняется корневая гласная: ${B(m.change)} → ${B(form)}.`);
+    return out.join('<br>');
+  }
+  // ihr
+  out.push(m.linkE
+    ? `Основа ${B(m.stem)} оканчивается на ${B('-t / -d')}, поэтому окончание ${B('-et')}.`
+    : `К основе ${B(m.stem)} прибавляется окончание ${B('-t')}.`);
+  if (m.change) {
+    out.push(`Важно: чередование ${B(m.change)} у ihr ${B('не происходит')} —
+      ${B(form)}, а не как у du и er.`);
+  }
+  return out.join('<br>');
+}
+
+function verbsOfModule() {
+  return moduleWords(S.module).filter(w => w.pos === 'глаг.');
+}
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+}
+
+let CJ = { rows: [], module: null };
+inits.conj = function () {
+  const verbs = verbsOfModule();
+  if (!verbs.length) {
+    conjButtons(false);
+    $('#conjScore').textContent = '0 / 0';
+    $('#conjBody').innerHTML = `<div class="empty"><span class="ico">🔤</span>
+      В модуле «${esc(moduleName(S.module))}» нет глаголов.<br>
+      Добавь их с пометкой <code>pos: "глаг."</code> — и здесь появится спряжение.<br>
+      <button class="link-btn" data-go="home">На главную</button></div>`;
+    return;
+  }
+  conjButtons(true);
+  /* Возвращаемся в режим — упражнение и ответы остаются как были. */
+  if (CJ.module === S.module && CJ.rows.length) { conjRender(); return; }
+  conjStart(verbs);
+};
+function conjButtons(on) {
+  ['#conjCheck', '#conjShow', '#conjReset'].forEach(sel => { $(sel).style.display = on ? '' : 'none'; });
+}
+function conjStart(verbs) {
+  CJ = { rows: [], module: S.module };
+  verbs.forEach(w => {
+    const c = conjugate(w);
+    PRONOUNS.forEach((p, i) => {
+      CJ.rows.push({
+        w: w, p: p, answer: c.forms[p.key], hint: c.hint, state: '',
+        ru: (w.ruConj && w.ruConj[i]) || `${p.ru} — ${w.ru}`
+      });
+    });
+  });
+  conjRender();
+}
+function conjRender() {
+  let n = 0, html = '', lastVerb = null;
+  CJ.rows.forEach((r, i) => {
+    if (r.w.key !== lastVerb) {
+      if (lastVerb !== null) html += '</div>';
+      lastVerb = r.w.key;
+      const c = conjugate(r.w);
+      html += `<div class="conj-block">
+        <div class="conj-head">
+          <b>${esc(r.w.de)}</b> <span class="muted">${esc(r.w.tr)} — ${esc(r.w.ru)}</span>
+          ${speakBtn(r.w.de)}
+          ${c.hint ? `<span class="conj-flag">основа: ${esc(c.hint)}</span>` : ''}
+        </div>`;
+    }
+    n++;
+    const done = r.state === 'ok' || r.state === 'shown';
+    html += `<div class="crow ${r.state}" data-i="${i}">
+      <span class="c-n">${n}.</span>
+      <div class="c-main">
+        <div class="c-sent">${esc(r.p.de)}
+          <input class="c-in" data-i="${i}" type="text" autocomplete="off" autocorrect="off"
+                 autocapitalize="off" spellcheck="false" lang="de"
+                 value="${esc(r.typed || '')}" ${done ? 'disabled' : ''}>
+          ${r.w.ex ? esc(r.w.ex) + '.' : '.'}
+          <span class="c-inf">(${esc(r.w.de)})</span>
+        </div>
+        <div class="c-sub">
+          <span class="c-ru">${esc(r.ru)}</span>
+          <details class="c-rule">
+            <summary>правило</summary>
+            <div class="c-rule-body">${conjRule(r.w, r.p.key)}</div>
+          </details>
+        </div>
+      </div>
+      <span class="c-note">${conjNote(r)}</span>
+    </div>`;
+  });
+  if (lastVerb !== null) html += '</div>';
+  $('#conjBody').innerHTML = html;
+  conjScore();
+
+  $('#conjBody').querySelectorAll('.c-in').forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      conjCheckRow(+inp.dataset.i);
+      const all = [...$('#conjBody').querySelectorAll('.c-in:not([disabled])')];
+      const next = all.find(x => +x.dataset.i > +inp.dataset.i);
+      if (next) next.focus();
+    });
+    inp.addEventListener('blur', () => {
+      CJ.rows[+inp.dataset.i].typed = inp.value;
+      if (inp.value.trim()) conjCheckRow(+inp.dataset.i);
+    });
+  });
+}
+function conjNote(r) {
+  if (r.state === 'ok') return '✓';
+  if (r.state === 'shown') return `<span class="muted">${esc(r.answer)}</span>`;
+  if (r.state === 'bad') return `<span class="bad-text">✗ ${esc(r.answer)}</span>`;
+  if (r.state === 'uml') return `<span class="bad-text">✗ ${esc(r.answer)}<br><small>умляут</small></span>`;
+  return '';
+}
+function conjCheckRow(i, reveal) {
+  const r = CJ.rows[i];
+  if (!r || r.state === 'ok' || r.state === 'shown') return;
+  const el = $(`.crow[data-i="${i}"]`);
+  const inp = el ? el.querySelector('.c-in') : null;
+  const typed = inp ? inp.value : (r.typed || '');
+  r.typed = typed;
+  if (reveal) { r.state = 'shown'; r.typed = r.answer; }
+  else if (!typed.trim()) return;
+  else if (norm(typed) === norm(r.answer)) r.state = 'ok';
+  else if (loose(typed) === loose(r.answer)) r.state = 'uml';
+  else r.state = 'bad';
+  conjRefreshRow(i);
+  conjScore();
+}
+function conjRefreshRow(i) {
+  const r = CJ.rows[i];
+  const el = $(`.crow[data-i="${i}"]`);
+  if (!el) return;
+  el.className = 'crow ' + r.state;
+  el.querySelector('.c-note').innerHTML = conjNote(r);
+  const inp = el.querySelector('.c-in');
+  inp.value = r.typed || '';
+  if (r.state === 'ok' || r.state === 'shown') inp.disabled = true;
+}
+function conjScore() {
+  const ok = CJ.rows.filter(r => r.state === 'ok').length;
+  $('#conjScore').textContent = `${ok} / ${CJ.rows.length}`;
+}
+$('#conjCheck').addEventListener('click', () => {
+  CJ.rows.forEach((r, i) => conjCheckRow(i));
+  const bad = CJ.rows.filter(r => r.state === 'bad' || r.state === 'uml').length;
+  const empty = CJ.rows.filter(r => !r.state).length;
+  toast(bad || empty
+    ? `Ошибок: ${bad}${empty ? `, не заполнено: ${empty}` : ''}`
+    : 'Всё верно! 🎉');
+});
+$('#conjShow').addEventListener('click', () => {
+  CJ.rows.forEach((r, i) => conjCheckRow(i, true));
+});
+$('#conjReset').addEventListener('click', () => {
+  CJ.rows.forEach(r => { r.state = ''; r.typed = ''; });
+  conjRender();
+});
 
 /* ==========================================================================
    КЛАВИАТУРА

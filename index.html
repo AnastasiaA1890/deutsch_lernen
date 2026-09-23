@@ -73,6 +73,11 @@
         <span class="tile-name">Подбор пар</span>
         <span class="tile-desc">Собрать пары на скорость</span>
       </button>
+      <button class="tile" data-go="conj" id="conjTile">
+        <span class="tile-ico">🔤</span>
+        <span class="tile-name">Спряжение</span>
+        <span class="tile-desc" id="conjTileDesc">Окончания глаголов по лицам</span>
+      </button>
       <button class="tile" data-go="list">
         <span class="tile-ico">📖</span>
         <span class="tile-name">Список слов</span>
@@ -136,6 +141,18 @@
       <button class="icon-btn" id="matchRestart" title="Заново">↻</button>
     </div>
     <div id="matchBody"></div>
+  </section>
+
+  <!-- ==================== СПРЯЖЕНИЕ ==================== -->
+  <section class="screen" id="screen-conj">
+    <div class="bar wrap">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <span class="bar-label big" id="conjScore">0 / 0</span>
+      <button class="btn ghost small" id="conjCheck">Проверить всё</button>
+      <button class="btn ghost small" id="conjShow">Показать ответы</button>
+      <button class="btn ghost small" id="conjReset">Сбросить</button>
+    </div>
+    <div id="conjBody"></div>
   </section>
 
   <!-- ==================== СПИСОК СЛОВ ==================== -->

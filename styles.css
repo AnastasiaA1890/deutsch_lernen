@@ -242,6 +242,69 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 @keyframes pop{50%{transform:scale(1.06)}}
 @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 
+/* ===== Спряжение ========================================================= */
+.bar.wrap{flex-wrap:wrap}
+.btn.small{padding:8px 13px; font-size:13.5px; border-radius:10px}
+.tile:disabled{opacity:.45; cursor:default}
+.tile:disabled:hover{transform:none; border-color:var(--line)}
+
+.conj-block{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:6px 16px 10px; margin-bottom:14px; box-shadow:var(--shadow)}
+.conj-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:12px 0 10px; border-bottom:1px solid var(--line); font-size:17px}
+.conj-head .muted{font-size:14px}
+.conj-flag{margin-left:auto; font-size:12.5px; font-weight:600; color:var(--warn);
+  background:var(--warn-soft); border-radius:999px; padding:3px 10px; white-space:nowrap}
+
+.crow{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line)}
+.crow:last-child{border-bottom:0}
+.c-n{width:24px; flex:none; text-align:right; color:var(--muted); font-size:13.5px;
+  font-variant-numeric:tabular-nums}
+.c-main{flex:1; min-width:0}
+.c-sent{display:flex; align-items:center; flex-wrap:wrap; gap:7px;
+  font-size:17px; line-height:1.45}
+.c-sub{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:4px}
+.c-ru{font-size:13.5px; color:var(--muted)}
+.c-rule{font-size:12.5px}
+.c-rule[open]{flex-basis:100%}
+.c-rule summary{
+  cursor:pointer; color:var(--accent); list-style:none; display:inline-flex; align-items:center;
+  gap:4px; padding:1px 9px; border:1px solid var(--line); border-radius:999px; user-select:none;
+}
+.c-rule summary::-webkit-details-marker{display:none}
+.c-rule summary::before{content:"?"; font-weight:700; font-size:11px; opacity:.75}
+.c-rule summary:hover{border-color:var(--accent); background:var(--accent-soft)}
+.c-rule[open] summary{background:var(--accent-soft); border-color:var(--accent)}
+.c-rule-body{
+  margin-top:7px; background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--accent);
+  border-radius:9px; padding:9px 12px; font-size:13px; line-height:1.55; color:var(--text); max-width:640px;
+}
+.c-inf{color:var(--muted); font-size:14px}
+.c-in{
+  width:9.5em; background:var(--panel-2); border:1.5px solid var(--line); border-radius:9px;
+  padding:6px 10px; font:inherit; font-size:16px; color:var(--text);
+}
+.c-in:focus{outline:none; border-color:var(--accent); background:var(--panel)}
+.c-in:disabled{opacity:1}
+.c-note{flex:none; font-size:13.5px; min-width:5.5em; text-align:right}
+.bad-text{color:var(--bad)} .warn-text{color:var(--warn)}
+.crow.ok .c-in{border-color:var(--ok); background:var(--ok-soft)}
+.crow.ok .c-note{color:var(--ok); font-size:17px}
+.crow.bad .c-in{border-color:var(--bad); background:var(--bad-soft)}
+.crow.uml .c-in{border-color:var(--bad); background:var(--bad-soft)}
+.c-note small{font-size:11px; opacity:.85}
+.crow.shown .c-in{border-color:var(--line); background:var(--panel-2); color:var(--muted)}
+@media (max-width:560px){
+  .conj-block{padding:6px 12px 10px}
+  .crow{gap:7px}
+  .c-sent{font-size:15.5px; line-height:1.4; gap:6px}
+  .c-ru{font-size:12.5px}
+  .c-in{width:6.4em; font-size:15px; padding:5px 8px}
+  .c-inf{display:none}          /* инфинитив уже есть в шапке блока */
+  .c-note{min-width:3.4em; font-size:12.5px}
+  .conj-flag{margin-left:0}
+}
+
 /* ===== Список слов ======================================================= */
 .wlist{display:grid; gap:8px}
 .wrow{display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center;
