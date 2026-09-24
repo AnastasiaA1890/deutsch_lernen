@@ -1484,7 +1484,22 @@ function plural(n, one, few, many) {
   return many;
 }
 
-let CJ = { rows: [], module: null };
+let CJ = { rows: [], trows: [], module: null };
+let conjMode = 'endings';
+
+/* Русское предложение для перевода: «я» + «быстро» + «бегаю». */
+function ruSentence(w, idx) {
+  const base = (w.ruConj && w.ruConj[idx]) || '';
+  if (!base) return '';
+  const sp = base.indexOf(' ');
+  if (sp < 0 || !w.exRu) return cap(base + (w.exRu ? ' ' + w.exRu : ''));
+  const who = base.slice(0, sp).split('/')[0];          // «он/она/оно» → «он»
+  const rest = base.slice(sp + 1);
+  return cap(w.exPre ? `${who} ${w.exRu} ${rest}` : `${who} ${rest} ${w.exRu}`);
+}
+function cap(t) { return t ? t[0].toUpperCase() + t.slice(1) : t; }
+function firstPron(p) { return p.de.split('/')[0]; }
+
 inits.conj = function () {
   const verbs = verbsOfModule();
   if (!verbs.length) {
@@ -1497,7 +1512,7 @@ inits.conj = function () {
     return;
   }
   conjButtons(true);
-  /* Возвращаемся в режим — упражнение и ответы остаются как были. */
+  /* Возвращаемся в режим — упражнения и ответы остаются как были. */
   if (CJ.module === S.module && CJ.rows.length) { conjRender(); return; }
   conjStart(verbs);
 };
@@ -1505,7 +1520,7 @@ function conjButtons(on) {
   ['#conjCheck', '#conjShow', '#conjReset'].forEach(sel => { $(sel).style.display = on ? '' : 'none'; });
 }
 function conjStart(verbs) {
-  CJ = { rows: [], module: S.module };
+  CJ = { rows: [], trows: [], module: S.module };
   verbs.forEach(w => {
     const c = conjugate(w);
     PRONOUNS.forEach(p => {
@@ -1515,6 +1530,16 @@ function conjStart(verbs) {
       CJ.rows.push({
         w: w, p: p, answer: c.forms[p.key], hint: c.hint, state: '',
         ru: ru || `${p.ru} — ${w.ru}`
+      });
+      /* Тот же набор предложений, но целиком: с русского на немецкий. */
+      const tail = w.ex ? ' ' + w.ex : '';
+      const main = `${firstPron(p)} ${c.forms[p.key]}${tail}.`;
+      const alt = [];
+      if (p.key === 'er') alt.push(`Sie ${c.forms.er}${tail}.`, `Es ${c.forms.er}${tail}.`);
+      if (p.key === 'wir') alt.push(`Sie ${c.forms.sie}${tail}.`);
+      CJ.trows.push({
+        w: w, p: p, answer: main, accepts: [main].concat(alt),
+        ru: ruSentence(w, p.ruIdx[0]), state: ''
       });
     });
     /* Страховка: если в словаре руками задали разные формы для wir и sie,
@@ -1529,19 +1554,33 @@ function conjStart(verbs) {
   });
   conjRender();
 }
+function curRows() { return conjMode === 'endings' ? CJ.rows : CJ.trows; }
+
 function conjRender() {
+  const tabs = `<div class="segmented conj-tabs" id="conjTabs">
+      <button data-m="endings" class="${conjMode === 'endings' ? 'active' : ''}">Окончания</button>
+      <button data-m="translate" class="${conjMode === 'translate' ? 'active' : ''}">Перевод предложений</button>
+    </div>`;
+  $('#conjBody').innerHTML = tabs +
+    (conjMode === 'endings' ? endingsHTML() : translateHTML());
+  $('#conjTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-m]');
+    if (!b || b.dataset.m === conjMode) return;
+    conjMode = b.dataset.m;
+    conjRender();
+  });
+  (conjMode === 'endings' ? bindEndings : bindTranslate)();
+  conjScore();
+}
+
+/* ---------- вкладка «Окончания» ---------- */
+function endingsHTML() {
   let n = 0, html = '', lastVerb = null;
   CJ.rows.forEach((r, i) => {
     if (r.w.key !== lastVerb) {
       if (lastVerb !== null) html += '</div>';
       lastVerb = r.w.key;
-      const c = conjugate(r.w);
-      html += `<div class="conj-block">
-        <div class="conj-head">
-          <b>${esc(r.w.de)}</b> <span class="muted">${esc(r.w.tr)} — ${esc(r.w.ru)}</span>
-          ${speakBtn(r.w.de)}
-          ${c.hint ? `<span class="conj-flag">основа: ${esc(c.hint)}</span>` : ''}
-        </div>`;
+      html += conjHead(r.w);
     }
     n++;
     const done = r.state === 'ok' || r.state === 'shown';
@@ -1567,9 +1606,18 @@ function conjRender() {
     </div>`;
   });
   if (lastVerb !== null) html += '</div>';
-  $('#conjBody').innerHTML = html;
-  conjScore();
-
+  return html;
+}
+function conjHead(w) {
+  const c = conjugate(w);
+  return `<div class="conj-block">
+    <div class="conj-head">
+      <b>${esc(w.de)}</b> <span class="muted">${esc(w.tr)} — ${esc(w.ru)}</span>
+      ${speakBtn(w.de)}
+      ${c.hint ? `<span class="conj-flag">основа: ${esc(c.hint)}</span>` : ''}
+    </div>`;
+}
+function bindEndings() {
   $('#conjBody').querySelectorAll('.c-in').forEach(inp => {
     inp.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
@@ -1592,51 +1640,109 @@ function conjNote(r) {
   if (r.state === 'umlaut') return `<span class="bad-text">✗ ${esc(r.answer)}<br><small>умляут</small></span>`;
   return '';
 }
+
+/* ---------- вкладка «Перевод предложений» ---------- */
+function translateHTML() {
+  let n = 0, html = '', lastVerb = null;
+  html += `<p class="muted small conj-note-top">Переведи предложение на немецкий целиком.
+    Регистр и точка в конце не важны, а умляуты и ß — важны.</p>`;
+  CJ.trows.forEach((r, i) => {
+    if (r.w.key !== lastVerb) {
+      if (lastVerb !== null) html += '</div>';
+      lastVerb = r.w.key;
+      html += conjHead(r.w);
+    }
+    n++;
+    const done = r.state === 'ok' || r.state === 'shown';
+    html += `<div class="trow ${r.state}" data-i="${i}">
+      <span class="c-n">${n}.</span>
+      <div class="t-main">
+        <div class="t-ru">${esc(r.ru)}</div>
+        <input class="t-in" data-i="${i}" type="text" autocomplete="off" autocorrect="off"
+               autocapitalize="off" spellcheck="false" lang="de"
+               placeholder="напиши по-немецки" value="${esc(r.typed || '')}" ${done ? 'disabled' : ''}>
+        <div class="t-note">${transNote(r)}</div>
+      </div>
+    </div>`;
+  });
+  if (lastVerb !== null) html += '</div>';
+  return html;
+}
+function transNote(r) {
+  if (r.state === 'ok') return '<span class="ok-text">✓ верно</span>';
+  if (r.state === 'shown') return `<span class="muted">${esc(r.answer)}</span>`;
+  if (r.state === 'bad') return `<span class="bad-text">✗ ${esc(r.answer)}</span>`;
+  if (r.state === 'umlaut') return `<span class="bad-text">✗ ${esc(r.answer)} · ошибка в умляуте</span>`;
+  return '';
+}
+function bindTranslate() {
+  $('#conjBody').querySelectorAll('.t-in').forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      conjCheckRow(+inp.dataset.i);
+      const all = [...$('#conjBody').querySelectorAll('.t-in:not([disabled])')];
+      const next = all.find(x => +x.dataset.i > +inp.dataset.i);
+      if (next) next.focus();
+    });
+    inp.addEventListener('blur', () => {
+      CJ.trows[+inp.dataset.i].typed = inp.value;
+      if (inp.value.trim()) conjCheckRow(+inp.dataset.i);
+    });
+  });
+}
+
+/* ---------- общая проверка обеих вкладок ---------- */
 function conjCheckRow(i, reveal) {
-  const r = CJ.rows[i];
+  const rows = curRows();
+  const r = rows[i];
   if (!r || r.state === 'ok' || r.state === 'shown') return;
-  const el = $(`.crow[data-i="${i}"]`);
-  const inp = el ? el.querySelector('.c-in') : null;
+  const sel = conjMode === 'endings' ? '.crow' : '.trow';
+  const el = $(`${sel}[data-i="${i}"]`);
+  const inp = el ? el.querySelector('input') : null;
   const typed = inp ? inp.value : (r.typed || '');
   r.typed = typed;
+  const variants = r.accepts || [r.answer];
   if (reveal) { r.state = 'shown'; r.typed = r.answer; }
   else if (!typed.trim()) return;
-  else if (norm(typed) === norm(r.answer)) r.state = 'ok';
-  else if (loose(typed) === loose(r.answer)) r.state = 'umlaut';
+  else if (variants.some(a => norm(a) === norm(typed))) r.state = 'ok';
+  else if (variants.some(a => loose(a) === loose(typed))) r.state = 'umlaut';
   else r.state = 'bad';
   conjRefreshRow(i);
   conjScore();
 }
 function conjRefreshRow(i) {
-  const r = CJ.rows[i];
-  const el = $(`.crow[data-i="${i}"]`);
+  const r = curRows()[i];
+  const sel = conjMode === 'endings' ? '.crow' : '.trow';
+  const el = $(`${sel}[data-i="${i}"]`);
   if (!el) return;
-  el.className = 'crow ' + r.state;
-  el.querySelector('.c-note').innerHTML = conjNote(r);
-  const inp = el.querySelector('.c-in');
+  el.className = (conjMode === 'endings' ? 'crow ' : 'trow ') + r.state;
+  el.querySelector(conjMode === 'endings' ? '.c-note' : '.t-note').innerHTML =
+    conjMode === 'endings' ? conjNote(r) : transNote(r);
+  const inp = el.querySelector('input');
   inp.value = r.typed || '';
   if (r.state === 'ok' || r.state === 'shown') inp.disabled = true;
 }
 function conjScore() {
-  const ok = CJ.rows.filter(r => r.state === 'ok').length;
-  $('#conjScore').textContent = `${ok} / ${CJ.rows.length}`;
+  const rows = curRows();
+  const ok = rows.filter(r => r.state === 'ok').length;
+  $('#conjScore').textContent = `${ok} / ${rows.length}`;
 }
 $('#conjCheck').addEventListener('click', () => {
-  CJ.rows.forEach((r, i) => conjCheckRow(i));
-  const bad = CJ.rows.filter(r => r.state === 'bad' || r.state === 'umlaut').length;
-  const empty = CJ.rows.filter(r => !r.state).length;
+  curRows().forEach((r, i) => conjCheckRow(i));
+  const bad = curRows().filter(r => r.state === 'bad' || r.state === 'umlaut').length;
+  const empty = curRows().filter(r => !r.state).length;
   toast(bad || empty
     ? `Ошибок: ${bad}${empty ? `, не заполнено: ${empty}` : ''}`
     : 'Всё верно! 🎉');
 });
 $('#conjShow').addEventListener('click', () => {
-  CJ.rows.forEach((r, i) => conjCheckRow(i, true));
+  curRows().forEach((r, i) => conjCheckRow(i, true));
 });
 $('#conjReset').addEventListener('click', () => {
-  CJ.rows.forEach(r => { r.state = ''; r.typed = ''; });
+  curRows().forEach(r => { r.state = ''; r.typed = ''; });
   conjRender();
 });
-
 
 /* ==========================================================================
    ЧТЕНИЕ. Раздел ни от каких модулей со словами не зависит: свои тексты,
