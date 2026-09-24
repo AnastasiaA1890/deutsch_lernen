@@ -1702,6 +1702,16 @@ function translateHTML() {
                autocapitalize="off" spellcheck="false" lang="de"
                placeholder="напиши по-немецки" value="${esc(r.typed || '')}" ${done ? 'disabled' : ''}>
         <div class="t-note">${transNote(r)}</div>
+        <div class="c-sub">
+          <details class="c-rule">
+            <summary>подсказка</summary>
+            <div class="c-rule-body">
+              <div class="t-answer"><b>${esc(r.answer)}</b>
+                <button class="tip-btn" data-speak="${esc(r.answer)}">🔊 послушать</button></div>
+              ${conjRule(r.w, r.p.key)}
+            </div>
+          </details>
+        </div>
       </div>
     </div>`;
   });
