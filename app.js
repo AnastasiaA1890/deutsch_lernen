@@ -83,6 +83,7 @@ function deleteOwnSet(id) {
   set.words.forEach(w => { delete S.w[id + '::' + w.de + '|' + w.ru]; });
   S.userSets = ownSets().filter(s => s.id !== id);
   delete S.learns[id];
+  clearConj(id);
   Object.keys(S.match).forEach(k => { if (k.indexOf(id + '/') === 0) delete S.match[k]; });
   if (S.module === id) S.module = MODULES[0] ? MODULES[0].id : ALL;
   save(); rebuildModules();
@@ -1286,6 +1287,7 @@ inits.settings = function () {
     if (!m || !confirm(`Сбросить прогресс модуля «${m.name}»? Отменить будет нельзя.`)) return;
     m.words.forEach(w => { delete S.w[w.key]; });
     delete S.learns[m.id];
+    clearConj(m.id);
     Object.keys(S.match).forEach(k => { if (k.indexOf(m.id + '/') === 0) delete S.match[k]; });
     save(); updateMini(); inits.settings();
     toast('Прогресс модуля сброшен');
@@ -1299,7 +1301,8 @@ inits.settings = function () {
   $('#setTr').addEventListener('change', e => { S.alwaysTr = e.target.checked; save(); });
   $('#setReset').addEventListener('click', () => {
     if (!confirm('Сбросить весь прогресс по всем словам? Отменить будет нельзя.')) return;
-    S.w = {}; S.learns = {}; S.match = {};
+    S.w = {}; S.learns = {}; S.match = {}; S.conj = {};
+    CJ = { rows: [], trows: [], module: null, sig: '' };
     save(); updateMini(); inits.settings();
     toast('Прогресс сброшен');
   });
@@ -1484,8 +1487,40 @@ function plural(n, one, few, many) {
   return many;
 }
 
-let CJ = { rows: [], trows: [], module: null };
+let CJ = { rows: [], trows: [], module: null, sig: '' };
 let conjMode = 'endings';
+
+/* Что уже отработано, сохраняется по модулю и по вкладкам. Строка опознаётся
+   по паре «слово + лицо», поэтому добавление новых глаголов ничего не сбивает. */
+function conjKey(r) { return r.w.key + '|' + r.p.key; }
+function saveConj() {
+  if (!S.conj) S.conj = {};
+  const pack = rows => {
+    const o = {};
+    rows.forEach(r => {
+      if (r.state || (r.typed && r.typed.trim())) o[conjKey(r)] = { s: r.state || '', t: r.typed || '' };
+    });
+    return o;
+  };
+  const e = pack(CJ.rows), t = pack(CJ.trows);
+  if (!Object.keys(e).length && !Object.keys(t).length) delete S.conj[CJ.module];
+  else S.conj[CJ.module] = { endings: e, translate: t };
+  save();
+}
+function applySavedConj() {
+  const box = (S.conj || {})[CJ.module];
+  if (!box) return;
+  const apply = (rows, saved) => rows.forEach(r => {
+    const rec = saved && saved[conjKey(r)];
+    if (rec) { r.state = rec.s || ''; r.typed = rec.t || ''; }
+  });
+  apply(CJ.rows, box.endings);
+  apply(CJ.trows, box.translate);
+}
+function clearConj(moduleId) {
+  if (S.conj) delete S.conj[moduleId];
+  if (CJ.module === moduleId) CJ = { rows: [], trows: [], module: null, sig: '' };
+}
 
 /* Русское предложение для перевода: «я» + «быстро» + «бегаю». */
 function ruSentence(w, idx) {
@@ -1512,15 +1547,16 @@ inits.conj = function () {
     return;
   }
   conjButtons(true);
+  const sig = verbs.map(v => v.key).join('|');
   /* Возвращаемся в режим — упражнения и ответы остаются как были. */
-  if (CJ.module === S.module && CJ.rows.length) { conjRender(); return; }
-  conjStart(verbs);
+  if (CJ.module === S.module && CJ.sig === sig && CJ.rows.length) { conjRender(); return; }
+  conjStart(verbs, sig);
 };
 function conjButtons(on) {
   ['#conjCheck', '#conjShow', '#conjReset'].forEach(sel => { $(sel).style.display = on ? '' : 'none'; });
 }
-function conjStart(verbs) {
-  CJ = { rows: [], trows: [], module: S.module };
+function conjStart(verbs, sig) {
+  CJ = { rows: [], trows: [], module: S.module, sig: sig || '' };
   verbs.forEach(w => {
     const c = conjugate(w);
     PRONOUNS.forEach(p => {
@@ -1552,6 +1588,7 @@ function conjStart(verbs) {
       });
     }
   });
+  applySavedConj();
   conjRender();
 }
 function curRows() { return conjMode === 'endings' ? CJ.rows : CJ.trows; }
@@ -1580,7 +1617,7 @@ function endingsHTML() {
     if (r.w.key !== lastVerb) {
       if (lastVerb !== null) html += '</div>';
       lastVerb = r.w.key;
-      html += conjHead(r.w);
+      html += conjHead(r.w, CJ.rows);
     }
     n++;
     const done = r.state === 'ok' || r.state === 'shown';
@@ -1608,12 +1645,15 @@ function endingsHTML() {
   if (lastVerb !== null) html += '</div>';
   return html;
 }
-function conjHead(w) {
+function conjHead(w, rows) {
   const c = conjugate(w);
+  const mine = rows.filter(r => r.w.key === w.key);
+  const done = mine.filter(r => r.state === 'ok').length;
   return `<div class="conj-block">
     <div class="conj-head">
       <b>${esc(w.de)}</b> <span class="muted">${esc(w.tr)} — ${esc(w.ru)}</span>
       ${speakBtn(w.de)}
+      <span class="conj-done ${done === mine.length ? 'all' : ''}">${done} / ${mine.length}</span>
       ${c.hint ? `<span class="conj-flag">основа: ${esc(c.hint)}</span>` : ''}
     </div>`;
 }
@@ -1629,7 +1669,7 @@ function bindEndings() {
     });
     inp.addEventListener('blur', () => {
       CJ.rows[+inp.dataset.i].typed = inp.value;
-      if (inp.value.trim()) conjCheckRow(+inp.dataset.i);
+      if (inp.value.trim()) conjCheckRow(+inp.dataset.i); else saveConj();
     });
   });
 }
@@ -1650,7 +1690,7 @@ function translateHTML() {
     if (r.w.key !== lastVerb) {
       if (lastVerb !== null) html += '</div>';
       lastVerb = r.w.key;
-      html += conjHead(r.w);
+      html += conjHead(r.w, CJ.trows);
     }
     n++;
     const done = r.state === 'ok' || r.state === 'shown';
@@ -1687,7 +1727,7 @@ function bindTranslate() {
     });
     inp.addEventListener('blur', () => {
       CJ.trows[+inp.dataset.i].typed = inp.value;
-      if (inp.value.trim()) conjCheckRow(+inp.dataset.i);
+      if (inp.value.trim()) conjCheckRow(+inp.dataset.i); else saveConj();
     });
   });
 }
@@ -1710,6 +1750,7 @@ function conjCheckRow(i, reveal) {
   else r.state = 'bad';
   conjRefreshRow(i);
   conjScore();
+  saveConj();
 }
 function conjRefreshRow(i) {
   const r = curRows()[i];
@@ -1722,6 +1763,15 @@ function conjRefreshRow(i) {
   const inp = el.querySelector('input');
   inp.value = r.typed || '';
   if (r.state === 'ok' || r.state === 'shown') inp.disabled = true;
+  /* Счётчик отработанного в шапке глагола пересчитываем сразу. */
+  const block = el.closest('.conj-block');
+  const badge = block && block.querySelector('.conj-done');
+  if (badge) {
+    const mine = curRows().filter(x => x.w.key === r.w.key);
+    const done = mine.filter(x => x.state === 'ok').length;
+    badge.textContent = `${done} / ${mine.length}`;
+    badge.classList.toggle('all', done === mine.length);
+  }
 }
 function conjScore() {
   const rows = curRows();
@@ -1741,6 +1791,7 @@ $('#conjShow').addEventListener('click', () => {
 });
 $('#conjReset').addEventListener('click', () => {
   curRows().forEach(r => { r.state = ''; r.typed = ''; });
+  saveConj();
   conjRender();
 });
 

@@ -253,6 +253,13 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .conj-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   padding:12px 0 10px; border-bottom:1px solid var(--line); font-size:17px}
 .conj-head .muted{font-size:14px}
+.conj-done{
+  margin-left:auto; font-size:12.5px; font-weight:650; color:var(--muted);
+  background:var(--panel-2); border:1px solid var(--line); border-radius:999px;
+  padding:2px 9px; font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.conj-done.all{color:var(--ok); background:var(--ok-soft); border-color:transparent}
+.conj-done + .conj-flag{margin-left:0}
 .conj-flag{margin-left:auto; font-size:12.5px; font-weight:600; color:var(--warn);
   background:var(--warn-soft); border-radius:999px; padding:3px 10px; white-space:nowrap}
 
