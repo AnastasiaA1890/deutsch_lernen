@@ -84,6 +84,7 @@ function deleteOwnSet(id) {
   S.userSets = ownSets().filter(s => s.id !== id);
   delete S.learns[id];
   clearConj(id);
+  clearCards(id);
   Object.keys(S.match).forEach(k => { if (k.indexOf(id + '/') === 0) delete S.match[k]; });
   if (S.module === id) S.module = MODULES[0] ? MODULES[0].id : ALL;
   save(); rebuildModules();
@@ -749,15 +750,46 @@ function learnDone() {
 /* ==========================================================================
    РЕЖИМ «КАРТОЧКИ»
    ========================================================================== */
-let C = { list: [], i: 0, flipped: false, marks: {} };
+let C = { list: [], i: 0, flipped: false, marks: {}, module: null, sig: '' };
+
+/* Отметки «знаю / не знаю» и место в колоде сохраняются по модулю:
+   вернувшись, видно, что уже разобрано, и колода продолжается с того же места. */
+function saveCards() {
+  if (!S.cards) S.cards = {};
+  if (!C.module) return;
+  const marks = C.marks || {};
+  if (!Object.keys(marks).length && !C.i) delete S.cards[C.module];
+  else S.cards[C.module] = { sig: C.sig, marks: marks, i: C.i, order: C.list.map(w => w.key) };
+  save();
+}
+function clearCards(moduleId) {
+  if (S.cards) delete S.cards[moduleId];
+  if (C.module === moduleId) C = { list: [], i: 0, flipped: false, marks: {}, module: null, sig: '' };
+}
 inits.cards = function () {
-  C = { list: shuffle(pool()), i: 0, flipped: false, marks: {} };
+  const list = pool();
+  const sig = S.filter + '|' + list.length;
+  const saved = (S.cards || {})[S.module];
+  if (saved && saved.sig === sig && (saved.order || []).length) {
+    const byK = new Map(list.map(w => [w.key, w]));
+    const restored = saved.order.map(k => byK.get(k)).filter(Boolean);
+    if (restored.length === list.length) {
+      C = { list: restored, i: Math.min(saved.i || 0, restored.length),
+            flipped: false, marks: saved.marks || {}, module: S.module, sig: sig };
+      renderCard();
+      return;
+    }
+  }
+  C = { list: shuffle(list), i: 0, flipped: false, marks: (saved && saved.marks) || {},
+        module: S.module, sig: sig };
+  saveCards();
   renderCard();
 };
 $('#cardsShuffle').addEventListener('click', () => {
   if (current !== 'cards') return;
-  C.list = shuffle(C.list); C.i = 0; C.flipped = false; renderCard();
-  toast('Перемешано');
+  C.list = shuffle(C.list); C.i = 0; C.flipped = false;
+  saveCards(); renderCard();
+  toast('Перемешано — отметки сохранены');
 });
 function renderCard() {
   const body = $('#cardsBody');
@@ -804,7 +836,8 @@ function renderCard() {
       <button class="link-btn" id="cStar">${st(w).star ? '⭐ отмечено' : '☆ отметить как сложное'}</button>
     </div>
     <div class="dots">${C.list.map((x, i) =>
-      `<span class="dot ${i === C.i ? 'now' : (C.marks[x.key] === 1 ? 'known' : C.marks[x.key] === 0 ? 'unknown' : '')}"></span>`).join('')}</div>`;
+      `<span class="dot ${i === C.i ? 'now' : (C.marks[x.key] === 1 ? 'known' : C.marks[x.key] === 0 ? 'unknown' : '')}"></span>`).join('')}</div>
+    ${cardsStats()}`;
 
   $('#flip').addEventListener('click', flipCard);
   $('#cPrev').addEventListener('click', () => move(-1));
@@ -817,7 +850,32 @@ function renderCard() {
   $('#cStar').addEventListener('click', () => {
     const s = st(w); s.star = !s.star; save(); renderCard();
   });
+  const clr = $('#cClear');
+  if (clr) clr.addEventListener('click', () => {
+    if (!confirm('Убрать все отметки «знаю / не знаю» в этом модуле?')) return;
+    C.marks = {}; saveCards(); renderCard();
+    toast('Отметки убраны');
+  });
   if (S.autoSpeak && !dir) speak(w.de);
+}
+function cardsStats() {
+  /* Считаем по текущей колоде, а не по всем отметкам: после «повторить
+     незнакомые» колода меньше, и общий счёт уходил бы в минус. */
+  let known = 0, unknown = 0;
+  C.list.forEach(w => {
+    const m = C.marks[w.key];
+    if (m === 1) known++; else if (m === 0) unknown++;
+  });
+  const left = C.list.length - known - unknown;
+  if (!known && !unknown) {
+    return '<p class="cards-stats muted">Отметки «знаю / не знаю» сохраняются: вернёшься — увидишь, что уже разобрано.</p>';
+  }
+  return `<p class="cards-stats">
+      <span class="chip ok">знаю <b>${known}</b></span>
+      <span class="chip warn">не знаю <b>${unknown}</b></span>
+      <span class="chip">без отметки <b>${left}</b></span>
+      <button class="link-btn" id="cClear">очистить отметки</button>
+    </p>`;
 }
 function flipCard() {
   C.flipped = !C.flipped;
@@ -828,6 +886,7 @@ function flipCard() {
 function move(d) {
   C.i = Math.max(0, Math.min(C.list.length, C.i + d));
   C.flipped = false;
+  saveCards();
   renderCard();
 }
 function mark(ok) {
@@ -852,10 +911,14 @@ function cardsDone() {
   const r = $('#cRetry');
   if (r) r.addEventListener('click', () => {
     const bad = C.list.filter(w => C.marks[w.key] === 0);
-    C = { list: shuffle(bad), i: 0, flipped: false, marks: {} };
-    renderCard();
+    C = { list: shuffle(bad), i: 0, flipped: false, marks: C.marks,
+          module: C.module, sig: C.sig + '|повтор' };
+    saveCards(); renderCard();
   });
-  $('#cAll').addEventListener('click', () => inits.cards());
+  $('#cAll').addEventListener('click', () => {
+    C.list = shuffle(C.list); C.i = 0; C.flipped = false;
+    saveCards(); renderCard();
+  });
 }
 
 /* ==========================================================================
@@ -1288,6 +1351,7 @@ inits.settings = function () {
     m.words.forEach(w => { delete S.w[w.key]; });
     delete S.learns[m.id];
     clearConj(m.id);
+    clearCards(m.id);
     Object.keys(S.match).forEach(k => { if (k.indexOf(m.id + '/') === 0) delete S.match[k]; });
     save(); updateMini(); inits.settings();
     toast('Прогресс модуля сброшен');
@@ -1301,7 +1365,7 @@ inits.settings = function () {
   $('#setTr').addEventListener('change', e => { S.alwaysTr = e.target.checked; save(); });
   $('#setReset').addEventListener('click', () => {
     if (!confirm('Сбросить весь прогресс по всем словам? Отменить будет нельзя.')) return;
-    S.w = {}; S.learns = {}; S.match = {}; S.conj = {};
+    S.w = {}; S.learns = {}; S.match = {}; S.conj = {}; S.cards = {};
     CJ = { rows: [], trows: [], module: null, sig: '' };
     save(); updateMini(); inits.settings();
     toast('Прогресс сброшен');

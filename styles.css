@@ -223,6 +223,8 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .nav-row{display:flex; align-items:center; justify-content:space-between; gap:10px}
 .dots{display:flex; gap:4px; flex-wrap:wrap; justify-content:center; margin-top:16px}
 .dot{width:7px; height:7px; border-radius:50%; background:var(--line)}
+.cards-stats{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  justify-content:center; margin-top:14px; font-size:13.5px}
 .dot.known{background:var(--ok)} .dot.unknown{background:var(--bad)} .dot.now{background:var(--accent); transform:scale(1.5)}
 
 /* ===== Пары ============================================================== */
