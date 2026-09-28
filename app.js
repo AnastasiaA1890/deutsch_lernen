@@ -18,7 +18,18 @@ function rebuildModules() {
   WORDS = [];
   const add = (set, i, own) => {
     const id = String(set.id || set.name || ('set' + (i + 1)));
-    const words = (set.words || []).map(w =>
+    const base = (set.words || []).slice();
+    if (!own) {
+      /* Слова, дописанные в приложении к модулю из words.js, лежат в браузере
+         и подмешиваются сюда. Если такое слово потом впишут в файл руками,
+         дубль не появится — сверяем по паре «слово + перевод». */
+      const seen = new Set(base.map(w => w.de + '|' + w.ru));
+      ((S.extra || {})[id] || []).forEach(w => {
+        const k = w.de + '|' + w.ru;
+        if (!seen.has(k)) { seen.add(k); base.push(w); }
+      });
+    }
+    const words = base.map(w =>
       Object.assign({}, w, { key: id + '::' + w.de + '|' + w.ru, module: id }));
     MODULES.push({ id: id, name: set.name || ('Модуль ' + (i + 1)), words: words, own: !!own });
     WORDS.push.apply(WORDS, words);
@@ -52,6 +63,7 @@ function load() {
     if (raw) S = Object.assign(S, JSON.parse(raw));
   } catch (e) { /* приватное окно — работаем без сохранения */ }
   if (!Array.isArray(S.userSets)) S.userSets = [];
+  if (!S.extra || typeof S.extra !== 'object') S.extra = {};
   rebuildModules();
   migrate();
   if (S.module == null || (S.module !== ALL && !moduleById(S.module))) {
@@ -76,6 +88,24 @@ function addWordToOwnSet(setId, word) {
   set.words.push(word);
   save(); rebuildModules();
   return '';
+}
+/* Добавление слова в любой модуль: и в «свой», и в тот, что задан в words.js. */
+function addWordToModule(moduleId, word) {
+  if (ownSetById(moduleId)) return addWordToOwnSet(moduleId, word);
+  const m = moduleById(moduleId);
+  if (!m) return 'нет такого модуля';
+  if (m.words.some(w => w.de === word.de && w.ru === word.ru)) return 'уже есть';
+  if (!S.extra) S.extra = {};
+  if (!S.extra[moduleId]) S.extra[moduleId] = [];
+  S.extra[moduleId].push(word);
+  save(); rebuildModules();
+  return '';
+}
+function extraOf(id) { return (S.extra || {})[id] || []; }
+function dropExtras(id) {
+  extraOf(id).forEach(w => { delete S.w[id + '::' + w.de + '|' + w.ru]; });
+  if (S.extra) delete S.extra[id];
+  save(); rebuildModules();
 }
 function deleteOwnSet(id) {
   const set = ownSetById(id);
@@ -1215,11 +1245,16 @@ let addTarget = 'new';
 inits.add = function () {
   $('#addTarget').innerHTML =
     `<button data-t="new" class="${addTarget === 'new' ? 'active' : ''}">＋ Новый модуль</button>` +
-    MODULES.map(m => `<button data-t="${esc(m.id)}" class="${addTarget === m.id ? 'active' : ''}">${esc(m.name)}${m.own ? ' ·&nbsp;в&nbsp;браузере' : ''}</button>`).join('');
+    MODULES.map(m => `<button data-t="${esc(m.id)}" class="${addTarget === m.id ? 'active' : ''}">${esc(m.name)}</button>`).join('');
   $('#addName').style.display = addTarget === 'new' ? '' : 'none';
   $('#addName').previousElementSibling.style.display = addTarget === 'new' ? '' : 'none';
   if (!$('#addName').value) $('#addName').value = 'Набор ' + (MODULES.length + 1);
   $('#addOut').innerHTML = '';
+  $('#addHint').innerHTML = addTarget === 'new'
+    ? 'Слова попадут в новый модуль и сразу будут доступны во всех тренировках.'
+    : `Слова сразу попадут в «${esc(moduleName(addTarget))}» и будут доступны во всех
+       тренировках. Хранятся они в браузере; чтобы вписать их в <code>words.js</code>
+       насовсем, загляни в ⚙ Настройки.`;
 };
 $('#addTarget').addEventListener('click', e => {
   const b = e.target.closest('button[data-t]');
@@ -1248,54 +1283,37 @@ function parseAddLines(text) {
 
 $('#addBtn').addEventListener('click', () => {
   const { rows, bad } = parseAddLines($('#addInput').value);
-
-  /* Модуль из браузера можно наполнить прямо здесь — без правки файла. */
-  const own = ownSetById(addTarget);
-  if (own && rows.length) {
-    let added = 0, dup = 0;
-    rows.forEach(parts => {
-      const w = {};
-      parts.forEach(p => {
-        const i = p.indexOf(': ');
-        w[p.slice(0, i)] = JSON.parse(p.slice(i + 2));
-      });
-      if (addWordToOwnSet(own.id, w)) dup++; else added++;
-    });
-    $('#addInput').value = '';
-    inits.add();
-    $('#addOut').innerHTML = `<p class="small">Добавлено в «${esc(own.name)}»: <b>${added}</b>${
-      dup ? `, уже было: ${dup}` : ''}${bad.length ? `. Не разобрано: ${bad.map(esc).join('; ')}` : ''}</p>`;
-    updateMini();
-    toast(`Добавлено слов: ${added}`);
+  if (!rows.length) {
+    $('#addOut').innerHTML = `<p class="small" style="color:var(--bad)">
+      Не разобрано (нужен формат «перевод = Wort | транскри́пция»):
+      ${bad.map(esc).join('; ') || 'пусто'}</p>`;
     return;
   }
+  let targetId = addTarget;
+  if (targetId === 'new') targetId = createOwnSet($('#addName').value).id;
 
-  let code = '', hint = '';
-  if (rows.length) {
-    if (addTarget === 'new') {
-      const name = ($('#addName').value || ('Набор ' + (MODULES.length + 1))).trim();
-      const id = 'm' + Date.now().toString(36);
-      code = '{\n  id: ' + JSON.stringify(id) + ',\n  name: ' + JSON.stringify(name) +
-        ',\n  words: [\n' + rows.map(o => '    { ' + o.join(', ') + ' },').join('\n') +
-        '\n  ]\n},';
-      hint = 'Это готовый модуль. Вставь его в <code>words.js</code> перед самой последней скобкой <code>]</code> — у модуля будет свой собственный прогресс.';
-    } else {
-      code = rows.map(o => '  { ' + o.join(', ') + ' },').join('\n');
-      hint = 'Вставь эти строки в <code>words.js</code> внутрь модуля «' + esc(moduleName(addTarget)) +
-        '», перед его закрывающей скобкой <code>]</code>. Модуль из браузера пополняется сразу, без кода.';
-    }
-  }
-  $('#addOut').innerHTML = `
-    ${bad.length ? `<p class="small" style="color:var(--bad)">Не разобрано (нужен формат «перевод = Wort | транскри́пция»): ${bad.map(esc).join('; ')}</p>` : ''}
-    ${rows.length ? `<p class="small muted">${hint} Проверь <code>pos</code> — по умолчанию стоит «сущ.». После сохранения файла обнови страницу.</p>
-    <pre class="hint" id="addCode">${esc(code)}</pre>
-    <div class="row"><button class="btn" id="addCopy">Скопировать</button></div>` : ''}`;
-  const c = $('#addCopy');
-  if (c) c.addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(
-      () => toast('Скопировано — вставь в words.js'),
-      () => toast('Не удалось скопировать, выдели текст вручную'));
+  let added = 0, dup = 0;
+  rows.forEach(parts => {
+    const w = {};
+    parts.forEach(p => {
+      const i = p.indexOf(': ');
+      w[p.slice(0, i)] = JSON.parse(p.slice(i + 2));
+    });
+    if (addWordToModule(targetId, w)) dup++; else added++;
   });
+
+  const name = moduleName(targetId);
+  addTarget = targetId;
+  S.lastOwnSet = targetId;
+  $('#addInput').value = '';
+  save();
+  inits.add();
+  $('#addOut').innerHTML = `<p class="small">
+    Добавлено в «${esc(name)}»: <b>${added}</b>${dup ? `, уже было: ${dup}` : ''}${
+      bad.length ? `. Не разобрано: ${bad.map(esc).join('; ')}` : ''}.
+    ${added ? 'Слова уже доступны во всех тренировках.' : ''}</p>`;
+  updateMini();
+  toast(added ? `Добавлено слов: ${added}` : 'Новых слов нет');
 });
 
 function insertStress() {
@@ -1348,11 +1366,15 @@ inits.settings = function () {
     ${MODULES.map(m => {
       const mc = counts(m.words);
       return `<div class="set-row">
-        <div><div class="t">${esc(m.name)}${m.own ? ' <span class="badge">в браузере</span>' : ''}</div>
+        <div><div class="t">${esc(m.name)}${m.own ? ' <span class="badge">в браузере</span>' : ''}${
+          !m.own && extraOf(m.id).length ? ` <span class="badge">+${extraOf(m.id).length} в браузере</span>` : ''}</div>
         <div class="d">${mc.total} слов · выучено ${mc.known}, в работе ${mc.learning}, новых ${mc.fresh}</div></div>
         <div class="acts wrap">
           ${m.own ? `<button class="btn ghost small" data-export="${esc(m.id)}">Выгрузить в words.js</button>
                      <button class="btn ghost small danger" data-drop="${esc(m.id)}">Удалить</button>` : ''}
+          ${!m.own && extraOf(m.id).length ? `
+            <button class="btn ghost small" data-extra="${esc(m.id)}">Выгрузить дописанные (${extraOf(m.id).length})</button>
+            <button class="btn ghost small danger" data-dropextra="${esc(m.id)}">Убрать дописанные</button>` : ''}
           <button class="btn ghost small danger" data-reset="${esc(m.id)}">Сбросить прогресс</button>
         </div>
       </div>`;
@@ -1369,6 +1391,16 @@ inits.settings = function () {
 
   $('#settingsBody').querySelectorAll('[data-export]').forEach(b =>
     b.addEventListener('click', () => exportOwnSet(b.dataset.export)));
+  $('#settingsBody').querySelectorAll('[data-extra]').forEach(b =>
+    b.addEventListener('click', () => exportExtras(b.dataset.extra)));
+  $('#settingsBody').querySelectorAll('[data-dropextra]').forEach(b => b.addEventListener('click', () => {
+    const m = moduleById(b.dataset.dropextra);
+    const n = extraOf(b.dataset.dropextra).length;
+    if (!m || !confirm(`Убрать ${n} слов, дописанных к модулю «${m.name}» в браузере? Их прогресс тоже пропадёт.`)) return;
+    dropExtras(m.id);
+    inits.settings(); updateMini();
+    toast('Дописанные слова убраны');
+  }));
   $('#settingsBody').querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => {
     const set = ownSetById(b.dataset.drop);
     if (!set) return;
@@ -2091,7 +2123,7 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM
 
 function openAddWordModal(form) {
   const d = cardDraft(form, glossOf(form));
-  const sets = ownSets();
+  const sets = MODULES;
   const last = sets.some(x => x.id === S.lastOwnSet) ? S.lastOwnSet : (sets[0] ? sets[0].id : 'new');
   const POS = ['сущ.', 'глаг.', 'прил.', 'нареч.', 'мест.', 'предл.', 'союз', 'част.', 'числ.', 'фраза'];
 
@@ -2126,9 +2158,9 @@ function openAddWordModal(form) {
       <label class="field-label" style="margin-top:12px">Название нового модуля</label>
       <input class="text-input" id="awName" value="Слова из текстов" autocomplete="off">
     </div>
-    <p class="muted small" style="margin-top:12px">Такой модуль хранится в браузере и сразу
-       доступен во всех тренировках. Чтобы сохранить его насовсем, выгрузи его
-       в <code>words.js</code> в ⚙ Настройках.</p>
+    <p class="muted small" style="margin-top:12px">Слово сразу появится во всех тренировках.
+       Добавленное в приложении хранится в браузере — чтобы вписать его
+       в <code>words.js</code> насовсем, загляни в ⚙ Настройки.</p>
     <div class="row end">
       <button class="btn ghost" id="awCancel">Отмена</button>
       <button class="btn" id="awOk">Добавить</button>
@@ -2157,12 +2189,12 @@ function openAddWordModal(form) {
     if (!word.de || !word.tr || !word.ru) { toast('Заполни слово, транскрипцию и перевод'); return; }
     let setId = setSel.value;
     if (setId === 'new') setId = createOwnSet($('#awName').value).id;
-    const err = addWordToOwnSet(setId, word);
+    const err = addWordToModule(setId, word);
     S.lastOwnSet = setId;
     save();
     closeModal();
     hideTip();
-    const name = (ownSetById(setId) || {}).name || '';
+    const name = moduleName(setId);
     toast(err === 'уже есть' ? `«${word.de}» уже есть в модуле «${name}»`
                              : `«${word.de}» добавлено в «${name}»`);
   });
@@ -2176,17 +2208,43 @@ document.addEventListener('click', e => {
 
 /* Свой модуль живёт в браузере. Эта кнопка превращает его в кусок кода,
    который можно вставить в words.js и хранить уже насовсем. */
+function wordCode(w, pad) {
+  const parts = [`de: ${JSON.stringify(w.de)}`, `tr: ${JSON.stringify(w.tr)}`,
+                 `ru: ${JSON.stringify(w.ru)}`, `pos: ${JSON.stringify(w.pos || 'сущ.')}`];
+  if (w.pl) parts.push(`pl: ${JSON.stringify(w.pl)}`);
+  if (w.plTr) parts.push(`plTr: ${JSON.stringify(w.plTr)}`);
+  if (w.note) parts.push(`note: ${JSON.stringify(w.note)}`);
+  return pad + '{ ' + parts.join(', ') + ' },';
+}
+/* Слова, дописанные к модулю из файла: код для переноса в words.js. */
+function exportExtras(id) {
+  const m = moduleById(id);
+  const list = extraOf(id);
+  if (!m || !list.length) return;
+  const code = list.map(w => wordCode(w, '  ')).join('\n');
+  $('#modalCard').innerHTML = `
+    <h3 class="modal-title">Дописанные слова модуля «${esc(m.name)}»</h3>
+    <p class="muted small">Эти ${list.length} слов пока лежат в браузере. Чтобы они жили
+       в файле, вставь строки в <code>words.js</code> внутрь модуля «${esc(m.name)}»,
+       перед его закрывающей скобкой <code>]</code>. После этого их можно убрать
+       из браузера кнопкой «Убрать дописанные» — дубля не будет.</p>
+    <pre class="hint">${esc(code)}</pre>
+    <div class="row end">
+      <button class="btn ghost" id="exClose">Закрыть</button>
+      <button class="btn" id="exCopy">Скопировать</button>
+    </div>`;
+  $('#modal').hidden = false;
+  $('#exClose').addEventListener('click', closeModal);
+  $('#exCopy').addEventListener('click', () => {
+    navigator.clipboard.writeText(code).then(
+      () => toast('Скопировано — вставь в words.js'),
+      () => toast('Не удалось скопировать, выдели текст вручную'));
+  });
+}
 function exportOwnSet(id) {
   const set = ownSetById(id);
   if (!set) return;
-  const rows = set.words.map(w => {
-    const parts = [`de: ${JSON.stringify(w.de)}`, `tr: ${JSON.stringify(w.tr)}`,
-                   `ru: ${JSON.stringify(w.ru)}`, `pos: ${JSON.stringify(w.pos || 'сущ.')}`];
-    if (w.pl) parts.push(`pl: ${JSON.stringify(w.pl)}`);
-    if (w.plTr) parts.push(`plTr: ${JSON.stringify(w.plTr)}`);
-    if (w.note) parts.push(`note: ${JSON.stringify(w.note)}`);
-    return '    { ' + parts.join(', ') + ' },';
-  });
+  const rows = set.words.map(w => wordCode(w, '    '));
   const code = '{\n  id: ' + JSON.stringify(set.id) + ',\n  name: ' + JSON.stringify(set.name) +
     ',\n  words: [\n' + rows.join('\n') + '\n  ]\n},';
   $('#modalCard').innerHTML = `
