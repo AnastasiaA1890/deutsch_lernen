@@ -270,22 +270,45 @@ function lev(a, b) {
   }
   return prev[n];
 }
-function accepts(w) {
-  const out = new Set();
-  const add = x => { const n = norm(x); if (n) out.add(n); };
+const ART_RE = /^\s*(der|die|das)\s+/i;
+function articleOf(x) {
+  const m = String(x || '').match(ART_RE);
+  return m ? m[1].toLowerCase() : '';
+}
+/* Варианты правильного ответа: текст без артикля + сам артикль отдельно. */
+function variants(w) {
+  const out = [];
+  const add = x => {
+    const s = String(x || '').trim();
+    if (!s) return;
+    const n = norm(s);
+    if (n && !out.some(v => v.text === n && v.art === articleOf(s))) out.push({ text: n, art: articleOf(s) });
+  };
   add(w.de);
   (w.accept || []).forEach(add);
-  if (w.de.includes('|')) w.de.split('|').forEach(p => add(p));
-  return [...out];
+  if (w.de.includes('|')) w.de.split('|').forEach(add);
+  return out;
+}
+function accepts(w) { return variants(w).map(v => v.text); }
+/* Артикль писать не обязательно, но если написан — должен быть верным. */
+function wantedArticle(w, typed) {
+  const t = norm(typed);
+  const same = variants(w).filter(v => v.text === t && v.art);
+  return same.length ? same[0].art : '';
 }
 function checkTyped(input, w) {
   const t = norm(input);
   if (!t) return 'bad';
-  const a = accepts(w);
-  if (a.includes(t)) return 'ok';
+  const vs = variants(w);
+  const same = vs.filter(v => v.text === t);
+  if (same.length) {
+    const got = articleOf(input);
+    if (got && same.every(v => v.art && v.art !== got)) return 'article';
+    return 'ok';
+  }
   const lt = loose(t);
-  if (a.some(x => loose(x) === lt)) return 'umlaut';   // отличие только в умляутах / ß
-  if (a.some(x => x.length > 3 && lev(x, t) <= 1)) return 'near';
+  if (vs.some(v => loose(v.text) === lt)) return 'umlaut';   // отличие только в умляутах / ß
+  if (vs.some(v => v.text.length > 3 && lev(v.text, t) <= 1)) return 'near';
   return 'bad';
 }
 let toastTimer = null;
@@ -573,6 +596,14 @@ function renderQuestion(container, q, onDone, extraHTML, showStage) {
     const submit = () => {
       if (answered) return;
       const res = checkTyped(input.value, w);
+      if (res === 'article') {
+        input.classList.add('near');
+        showFb('near', `Не засчитано: неверный артикль. Нужен
+          <b>${esc(wantedArticle(w, input.value))}</b>, а не <b>${esc(articleOf(input.value))}</b>.
+          Попробуй ещё раз — артикль можно и не писать вовсе.`);
+        input.focus();
+        return;
+      }
       if (res === 'umlaut') {
         input.classList.add('near');
         const u = umlautsOf(w.de);
@@ -590,6 +621,7 @@ function renderQuestion(container, q, onDone, extraHTML, showStage) {
         return;
       }
       answered = true;
+      input.classList.remove('near');          // снять жёлтую рамку прошлой попытки
       input.classList.add(res === 'ok' ? 'correct' : 'wrong');
       input.disabled = true;
       finish(res === 'ok');
@@ -1003,7 +1035,7 @@ inits.typing = function () {
   $('#typingLabel').textContent = '';
   if (!p.length) { $('#typingBody').innerHTML = emptyPool(); return; }
   $('#typingBody').innerHTML = lengthPicker('Ввод с клавиатуры',
-    'Пиши немецкое слово по русскому переводу. Артикль писать не нужно, регистр не важен. А вот умляуты и ß — обязательны: «o» вместо «ö» не засчитается.', p.length);
+    'Пиши немецкое слово по русскому переводу. Регистр не важен, артикль можно не писать — но если пишешь, он должен быть верным. Умляуты и ß обязательны: «o» вместо «ö» не засчитается.', p.length);
   bindLengthPicker($('#typingBody'), n => { P = { list: shuffle(p).slice(0, n), i: 0, wrong: [], right: 0 }; typingStep(); });
 };
 function typingStep() {
@@ -2061,7 +2093,7 @@ function openAddWordModal(form) {
   const d = cardDraft(form, glossOf(form));
   const sets = ownSets();
   const last = sets.some(x => x.id === S.lastOwnSet) ? S.lastOwnSet : (sets[0] ? sets[0].id : 'new');
-  const POS = ['сущ.', 'глаг.', 'прил.', 'нареч.', 'мест.', 'предл.', 'част.', 'числ.', 'фраза'];
+  const POS = ['сущ.', 'глаг.', 'прил.', 'нареч.', 'мест.', 'предл.', 'союз', 'част.', 'числ.', 'фраза'];
 
   $('#modalCard').innerHTML = `
     <h3 class="modal-title">Добавить слово в модуль</h3>
