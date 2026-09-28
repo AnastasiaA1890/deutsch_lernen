@@ -206,10 +206,7 @@ function cardDraft(form, gloss) {
     const head = (gloss || '').slice(0, m.index).trim().replace(/[;,]$/, '');
     if (head) ru = head;
   }
-  let pos = 'сущ.';
-  if (/^[a-zäöüß]+(en|ern|eln)$/.test(de)) pos = 'глаг.';
-  else if (/^[a-zäöüß]/.test(de)) pos = 'прил.';
-  return { de: de, ru: ru, pos: pos, tr: autoTr(de) };
+  return { de: de, ru: ru, pos: guessPos(de), tr: autoTr(de) };
 }
 /* Прогресс первой версии хранился без модулей: ключи вида «Haus|дом».
    Переносим их в первый модуль. Смотрим на форму самих данных, а не на
@@ -1248,10 +1245,14 @@ inits.add = function () {
     MODULES.map(m => `<button data-t="${esc(m.id)}" class="${addTarget === m.id ? 'active' : ''}">${esc(m.name)}</button>`).join('');
   $('#addName').style.display = addTarget === 'new' ? '' : 'none';
   $('#addName').previousElementSibling.style.display = addTarget === 'new' ? '' : 'none';
+  if (!$('#addPos').options.length) {
+    $('#addPos').innerHTML = '<option value="auto">определить автоматически</option>' +
+      POS_ALL.map(p => `<option>${p}</option>`).join('');
+  }
   if (!$('#addName').value) $('#addName').value = 'Набор ' + (MODULES.length + 1);
   $('#addOut').innerHTML = '';
   $('#addHint').innerHTML = addTarget === 'new'
-    ? 'Слова попадут в новый модуль и сразу будут доступны во всех тренировках.'
+    ? 'Слова попадут в новый модуль и сразу будут доступны во всех тренировках; глаголы — и в «Спряжение».'
     : `Слова сразу попадут в «${esc(moduleName(addTarget))}» и будут доступны во всех
        тренировках. Хранятся они в браузере; чтобы вписать их в <code>words.js</code>
        насовсем, загляни в ⚙ Настройки.`;
@@ -1263,6 +1264,17 @@ $('#addTarget').addEventListener('click', e => {
   inits.add();
 });
 
+const POS_ALL = ['сущ.', 'глаг.', 'прил.', 'нареч.', 'мест.', 'предл.', 'союз', 'част.', 'числ.', 'фраза'];
+/* Часть речи важна не для красоты: по ней глаголы попадают в «Спряжение»,
+   а слова — в фильтры списка. Угадываем по самому слову. */
+function guessPos(de) {
+  const d = String(de || '').trim();
+  if (/^[a-zäöüß]+(en|ern|eln)$/.test(d)) return 'глаг.';
+  if (/^(der|die|das)\s/i.test(d)) return 'сущ.';
+  if (/[\s.!?]/.test(d)) return 'фраза';
+  if (/^[A-ZÄÖÜ]/.test(d)) return 'сущ.';
+  return 'нареч.';
+}
 function parseAddLines(text) {
   const rows = [], bad = [];
   text.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
@@ -1271,8 +1283,10 @@ function parseAddLines(text) {
     const ru = line.slice(0, eq).trim();
     const [de, tr, pl, plTr] = line.slice(eq + 1).split('|').map(x => x.trim());
     if (!ru || !de || !tr) { bad.push(line); return; }
+    const chosen = $('#addPos') && $('#addPos').value;
+    const pos = chosen && chosen !== 'auto' ? chosen : guessPos(de);
     const o = [`de: ${JSON.stringify(de)}`, `tr: ${JSON.stringify(tr)}`,
-               `ru: ${JSON.stringify(ru)}`, `pos: "сущ."`];
+               `ru: ${JSON.stringify(ru)}`, `pos: ${JSON.stringify(pos)}`];
     if (pl) o.push(`pl: ${JSON.stringify(pl)}`);
     if (plTr) o.push(`plTr: ${JSON.stringify(plTr)}`);
     rows.push(o);
@@ -1651,9 +1665,12 @@ function clearConj(moduleId) {
 }
 
 /* Русское предложение для перевода: «я» + «быстро» + «бегаю». */
+const PRON_RU = ['я', 'ты', 'он', 'мы', 'вы', 'они'];
 function ruSentence(w, idx) {
   const base = (w.ruConj && w.ruConj[idx]) || '';
-  if (!base) return '';
+  /* У глагола, добавленного руками, русских форм нет — тогда задание
+     выглядит как «я (искать)»: лицо задано, а глагол берётся из перевода. */
+  if (!base) return cap(`${PRON_RU[idx] || ''} (${w.ru})`.trim());
   const sp = base.indexOf(' ');
   if (sp < 0 || !w.exRu) return cap(base + (w.exRu ? ' ' + w.exRu : ''));
   const who = base.slice(0, sp).split('/')[0];          // «он/она/оно» → «он»
