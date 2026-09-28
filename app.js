@@ -64,6 +64,7 @@ function load() {
   } catch (e) { /* приватное окно — работаем без сохранения */ }
   if (!Array.isArray(S.userSets)) S.userSets = [];
   if (!S.extra || typeof S.extra !== 'object') S.extra = {};
+  fixAddedPos();
   rebuildModules();
   migrate();
   if (S.module == null || (S.module !== ALL && !moduleById(S.module))) {
@@ -89,6 +90,44 @@ function addWordToOwnSet(setId, word) {
   save(); rebuildModules();
   return '';
 }
+/* Раньше экран «Добавить слова» всем словам ставил «сущ.», и глаголы не
+   попадали в «Спряжение». Чиним такие записи: немецкое существительное
+   пишется с большой буквы, так что строчное слово на -en/-ern/-eln —
+   это почти наверняка глагол. */
+function fixAddedPos() {
+  let n = 0;
+  const fix = list => (list || []).forEach(w => {
+    if (w.pos === 'сущ.' && /^[a-zäöüß]+(en|ern|eln)$/.test(String(w.de || '').trim())) {
+      w.pos = 'глаг.';
+      n++;
+    }
+  });
+  (S.userSets || []).forEach(set => fix(set.words));
+  Object.keys(S.extra || {}).forEach(id => fix(S.extra[id]));
+  if (n) save();
+  return n;
+}
+
+/* Слово, добавленное в приложении, можно убрать — например, если ошиблись
+   в написании. Слова из words.js так не трогаем. */
+function isAddedWord(w) {
+  if (!w) return false;
+  if (ownSetById(w.module)) return true;
+  return extraOf(w.module).some(x => x.de === w.de && x.ru === w.ru);
+}
+function removeAddedWord(w) {
+  const same = x => x.de === w.de && x.ru === w.ru;
+  const own = ownSetById(w.module);
+  if (own) own.words = own.words.filter(x => !same(x));
+  else if ((S.extra || {})[w.module]) {
+    S.extra[w.module] = S.extra[w.module].filter(x => !same(x));
+    if (!S.extra[w.module].length) delete S.extra[w.module];
+  } else return false;
+  delete S.w[w.key];
+  save(); rebuildModules();
+  return true;
+}
+
 /* Добавление слова в любой модуль: и в «свой», и в тот, что задан в words.js. */
 function addWordToModule(moduleId, word) {
   if (ownSetById(moduleId)) return addWordToOwnSet(moduleId, word);
@@ -1219,12 +1258,14 @@ function renderList() {
         <div><span class="de">${esc(w.de)}</span> <span class="tr">${esc(w.tr)}</span></div>
         <div class="ru">${esc(w.ru)}${w.note ? ` · <span class="muted">${esc(w.note)}</span>` : ''}${
           S.module === ALL ? ` · <span class="muted">${esc(moduleName(w.module))}</span>` : ''}</div>
+        ${isAddedWord(w) ? '<div class="pl">добавлено в приложении · ' + esc(w.pos) + '</div>' : ''}
         ${w.pl ? `<div class="pl">мн. ч.: ${esc(w.pl)} · ${esc(w.plTr || '')}</div>` : ''}
         ${w.forms ? `<div class="pl">формы: ${esc(w.forms)}</div>` : ''}
       </div>
       <div class="acts">
         ${speakBtn(w.de)}
         <button class="star ${s.star ? 'on' : ''}" data-star="${esc(w.key)}" title="Отметить как сложное">${s.star ? '⭐' : '☆'}</button>
+        ${isAddedWord(w) ? `<button class="star del" data-del="${esc(w.key)}" title="Убрать слово, добавленное в приложении">✕</button>` : ''}
       </div>
     </div>`;
   }).join('')}</div>` : `<div class="empty"><span class="ico">🔍</span>Ничего не найдено</div>`;
@@ -1232,6 +1273,13 @@ function renderList() {
   $('#listBody').querySelectorAll('[data-star]').forEach(b => b.addEventListener('click', () => {
     const s = st(byKey(b.dataset.star));
     s.star = !s.star; save(); renderList();
+  }));
+  $('#listBody').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    const w = byKey(b.dataset.del);
+    if (!w || !confirm(`Убрать слово «${w.de}» из модуля «${moduleName(w.module)}»? Его прогресс тоже пропадёт.`)) return;
+    removeAddedWord(w);
+    renderList(); updateMini();
+    toast('Слово убрано');
   }));
 }
 

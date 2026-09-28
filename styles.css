@@ -353,6 +353,7 @@ main{max-width:860px; margin:0 auto; padding:0 16px}
 .star{background:none; border:0; font-size:16px; padding:4px; border-radius:8px; opacity:.35}
 .star.on{opacity:1}
 .star:hover{background:var(--panel-2); opacity:.8}
+.star.del{font-size:14px; color:var(--bad)}
 .speak{background:none; border:0; font-size:15px; padding:4px 6px; border-radius:8px; opacity:.55}
 .speak:hover{opacity:1; background:var(--panel-2)}
 
