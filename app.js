@@ -176,7 +176,10 @@ function autoTr(word) {
   while (i < w.length) {
     const three = w.slice(i, i + 3), two = w.slice(i, i + 2), ch = w[i];
     const next = w[i + 1] || '', prev = i ? w[i - 1] : '';
-    if (three === 'sch') { out.push('ш'); i += 3; }
+    if (i === 0 && w.slice(0, 4) === 'chef') { out.push('шэф'); seenVowel = true; i += 4; }
+    else if (w.slice(i, i + 4) === 'tion') { out.push('цион'); seenVowel = true; i += 4; }
+    else if (w.slice(i, i + 4) === 'tsch') { out.push('ч'); i += 4; }
+    else if (three === 'sch') { out.push('ш'); i += 3; }
     else if (three === 'chs') { out.push('кс'); i += 3; }
     else if (two === 'ch') { out.push('х'); i += 2; }
     else if (two === 'ck') { out.push('к'); i += 2; }
@@ -192,11 +195,16 @@ function autoTr(word) {
     else if (two === 'ng') { out.push('нг'); i += 2; }
     else if (two === 'ss') { out.push('с'); i += 2; }
     else if (two[0] === two[1] && 'aeo'.indexOf(two[0]) >= 0) {
-      out.push({ a: 'а', e: seenVowel ? 'э' : 'е', o: 'о' }[two[0]]); seenVowel = true; i += 2;
+      const last = out[out.length - 1];
+      out.push(two[0] === 'e'
+        ? (!seenVowel && 'лр'.indexOf(last) >= 0 ? 'е' : 'э')
+        : { a: 'а', o: 'о' }[two[0]]);
+      seenVowel = true; i += 2;
     }
     else if (two === 'st' && start) { out.push('шт'); i += 2; }
     else if (two === 'sp' && start) { out.push('шп'); i += 2; }
     else if (TR_J[two]) { out.push(TR_J[two]); seenVowel = true; i += 2; }
+    else if (two === 'ig' && i + 2 === w.length) { out.push('их'); i += 2; }
     else if (two === 'er' && i + 2 === w.length) { out.push('эр'); i += 2; }
     else if (two === 'en' && i + 2 === w.length) { out.push('эн'); i += 2; }
     else if (two === 'el' && i + 2 === w.length) { out.push('эль'); i += 2; }
@@ -207,6 +215,9 @@ function autoTr(word) {
       seenVowel = true; i += 1;
     }
     else if (ch === 's') { out.push(next && TR_VOWELS.indexOf(next) >= 0 ? 'з' : 'с'); i += 1; }
+    /* «л» смягчается перед согласной и на конце слова: Milch → мильх,
+       helfen → хэ́льфэн, Ball → баль. */
+    else if (ch === 'l') { out.push(next && TR_VOWELS.indexOf(next) >= 0 ? 'л' : 'ль'); i += 1; }
     else {
       out.push(TR_SIMPLE[ch] !== undefined ? TR_SIMPLE[ch] : ch);
       if (TR_VOWELS.indexOf(ch) >= 0) seenVowel = true;
@@ -217,13 +228,16 @@ function autoTr(word) {
   return trStress(out.join(''), w);
 }
 const TR_PREFIX = ['be', 'ge', 'ver', 'er', 'ent', 'emp', 'zer'];
+/* Слова, которые только начинаются как приставочные: ударение на первом слоге. */
+const TR_NOT_PREFIX = ['gestern', 'gehen', 'gehe', 'geht', 'geben', 'gelb', 'geld', 'gegen',
+  'bett', 'beide', 'berg', 'besser', 'erde', 'ernst', 'essen', 'enkel', 'eltern'];
 const TR_TAIL = ['ion', 'ität', 'ieren', 'ei', 'ie'];
 function trStress(rus, orig) {
   const pos = [];
   for (let i = 0; i < rus.length; i++) if ('аеёиоуыэюя'.indexOf(rus[i]) >= 0) pos.push(i);
   if (pos.length < 2) return rus;
   let idx = 0;
-  if (TR_PREFIX.some(p => orig.indexOf(p) === 0)) idx = 1;
+  if (TR_PREFIX.some(p => orig.indexOf(p) === 0) && TR_NOT_PREFIX.indexOf(orig) < 0) idx = 1;
   if (TR_TAIL.some(t => orig.slice(-t.length) === t)) idx = pos.length - 1;
   const at = pos[idx];
   if (rus[at] === 'ё') return rus;
