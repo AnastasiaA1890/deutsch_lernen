@@ -27,7 +27,7 @@
 window.WORD_SETS = [
 {
   id: "leo-1",
-  name: "Набор 1 · LEO",
+  name: "Модуль 1",
   words: [
 
   { de: "Bruder", tr: "бру́дэр", ru: "брат", pos: "сущ.", pl: "Brüder", plTr: "брю́дэр" },
@@ -182,7 +182,7 @@ window.WORD_SETS = [
 },
 {
   id: "set-2",
-  name: "Набор 2 · с артиклями",
+  name: "Модуль 2",
   words: [
 
   { de: "Mach's gut!", tr: "махс гут", ru: "Всего хорошего!", pos: "фраза" },
@@ -300,7 +300,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-greet",
-  name: "1000 · Приветствия и знакомства",
+  name: "Приветствия и знакомства",
   words: [
 
   { de: "Alles Gute!", tr: "а́лэс гу́тэ", ru: "Всего хорошего!", pos: "фраза" },
@@ -456,7 +456,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-verbs",
-  name: "1000 · Основные глаголы",
+  name: "Основные глаголы",
   words: [
 
   { de: "fangen", tr: "фа́нгэн", ru: "ловить", pos: "глаг." },
@@ -537,7 +537,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-home",
-  name: "1000 · Дом и быт",
+  name: "Дом и быт",
   words: [
 
   { de: "dunkelblau", tr: "ду́нкэльблау", ru: "тёмно-синий", pos: "прил." },
@@ -642,7 +642,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-health",
-  name: "1000 · Здоровье и тело",
+  name: "Здоровье и тело",
   words: [
 
   { de: "der Bauchschmerz", tr: "дэр ба́уксхмэрц", ru: "боль в животе", pos: "сущ." },
@@ -753,7 +753,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-shop",
-  name: "1000 · Покупки и одежда",
+  name: "Покупки и одежда",
   words: [
 
   { de: "Haben Sie [...]?", tr: "ха́бэн зи [...]", ru: "Увас есть [...]?", pos: "фраза" },
@@ -810,7 +810,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-food",
-  name: "1000 · Еда и напитки",
+  name: "Еда и напитки",
   words: [
 
   { de: "backen", tr: "ба́кэн", ru: "печь (выпекать)", pos: "глаг." },
@@ -921,7 +921,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-family",
-  name: "1000 · Семья и люди",
+  name: "Семья и люди",
   words: [
 
   { de: "der Cousin", tr: "дэр коузи́н", ru: "двоюродный брат", pos: "сущ." },
@@ -1001,7 +1001,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-work",
-  name: "1000 · Учёба и работа",
+  name: "Учёба и работа",
   words: [
 
   { de: "die Aula", tr: "ди а́ула", ru: "актовый зал", pos: "сущ." },
@@ -1079,7 +1079,7 @@ window.WORD_SETS = [
 },
 {
   id: "pdf-sport",
-  name: "1000 · Спорт, хобби, животные",
+  name: "Спорт, хобби, животные",
   words: [
 
   { de: "fertig", tr: "фэ́ртих", ru: "готовый", pos: "прил." },
@@ -1152,38 +1152,27 @@ window.WORD_SETS = [
   ]},
 {
   id: "pdf-saetze",
-  name: "1000 · Фразы на каждый день",
+  name: "Фразы на каждый день",
   words: [
 
   { de: "Guten Morgen! Wie geht es Ihnen?", tr: "гу́тэн мо́ргэн ви гэт эс и́нэн", ru: "Доброе утро! Как у вас дела?", pos: "фраза", note: "Приветствие" },
   { de: "Hallo, wie geht's?", tr: "ха́ло ви гэтс", ru: "Привет, как дела?", pos: "фраза", note: "Приветствие" },
   { de: "Mein Name ist Anna.", tr: "майн на́мэ ист а́на", ru: "Меня зовут Анна.", pos: "фраза", note: "Приветствие" },
   { de: "Ich bin dreißig Jahre alt.", tr: "их бин дра́йсих я́рэ альт", ru: "Мне тридцать лет.", pos: "фраза", note: "Приветствие" },
-  { de: "Herzlich willkommen!", tr: "хэ́рцлих вилько́мэн", ru: "Добро пожаловать!", pos: "фраза", note: "Приветствие" },
   { de: "Es freut mich.", tr: "эс фройт мих", ru: "Приятно познакомиться.", pos: "фраза", note: "Приветствие" },
   { de: "Vielen Dank für die Einladung!", tr: "фи́лэн данк фюр ди а́йнладунг", ru: "Большое спасибо за приглашение!", pos: "фраза", note: "Приветствие" },
-  { de: "Gern geschehen!", tr: "гэрн гэшэ́эн", ru: "Не за что!", pos: "фраза", note: "Приветствие" },
-  { de: "Bis später!", tr: "бис шпэ́тэр", ru: "До скорого!", pos: "фраза", note: "Приветствие" },
   { de: "Schönen Tag noch!", tr: "шёнэн таг нох", ru: "Хорошего дня!", pos: "фраза", note: "Приветствие" },
   { de: "Gute Nacht und schlaf gut!", tr: "гу́тэ нахт унд шлаф гут", ru: "Спокойной ночи и хорошего сна!", pos: "фраза", note: "Приветствие" },
   { de: "Alles Gute zum Geburtstag!", tr: "а́лэс гу́тэ цум гэбу́ртстаг", ru: "С днём рождения!", pos: "фраза", note: "Приветствие" },
-  { de: "Herzlichen Glückwunsch!", tr: "хэ́рцлихэн глю́квунш", ru: "Поздравляю!", pos: "фраза", note: "Приветствие" },
-  { de: "Wie alt sind Sie?", tr: "ви альт зинд зи", ru: "Сколько вам лет?", pos: "фраза", note: "Приветствие" },
   { de: "Es geht mir sehr gut, danke.", tr: "эс гэт мир зэр гут да́нкэ", ru: "У меня всё хорошо, спасибо.", pos: "фраза", note: "Как дела" },
   { de: "Mir geht es nicht so gut.", tr: "мир гэт эс нихт зо гут", ru: "Мне не очень хорошо.", pos: "фраза", note: "Как дела" },
   { de: "Ich bin müde.", tr: "их бин мю́дэ", ru: "Я устал.", pos: "фраза", note: "Как дела" },
-  { de: "Ich bin krank.", tr: "их бин кранк", ru: "Я болею.", pos: "фраза", note: "Как дела" },
   { de: "Entschuldigung, ich habe Sie nicht verstanden.", tr: "энчу́льдигунг их ха́бэ зи нихт фэрста́ндэн", ru: "Извините, я вас не понял.", pos: "фраза", note: "Как дела" },
   { de: "Können Sie das bitte wiederholen?", tr: "кёнэн зи дас би́тэ ви́дэрхолэн", ru: "Повторите, пожалуйста.", pos: "фраза", note: "Как дела" },
-  { de: "Ja, ich verstehe.", tr: "я их фэрстэ́э", ru: "Да, я понимаю.", pos: "фраза", note: "Как дела" },
-  { de: "Kein Problem!", tr: "кайн проблэ́м", ru: "Нет проблем!", pos: "фраза", note: "Как дела" },
-  { de: "Es tut mir leid.", tr: "эс тут мир лайд", ru: "Мне жаль.", pos: "фраза", note: "Как дела" },
-  { de: "Gute Besserung!", tr: "гу́тэ бэсэ́рунг", ru: "Выздоравливай!", pos: "фраза", note: "Как дела" },
   { de: "Wie spät ist es?", tr: "ви шпэт ист эс", ru: "Который час?", pos: "фраза", note: "Время и планы" },
   { de: "Ich habe heute keine Zeit.", tr: "их ха́бэ хо́йтэ ка́йнэ цайт", ru: "Сегодня у меня нет времени.", pos: "фраза", note: "Время и планы" },
   { de: "Wir treffen uns am Montag.", tr: "вир тре́фэн унс ам мо́нтаг", ru: "Мы встречаемся в понедельник.", pos: "фраза", note: "Время и планы" },
   { de: "Der Termin ist am Mittwoch.", tr: "дэр тэрми́н ист ам ми́твох", ru: "Встреча в среду.", pos: "фраза", note: "Время и планы" },
-  { de: "Bis morgen!", tr: "бис мо́ргэн", ru: "До завтра!", pos: "фраза", note: "Время и планы" },
   { de: "Am Wochenende bleibe ich zu Hause.", tr: "ам во́хэнэндэ бла́йбэ их цу ха́узэ", ru: "На выходных я остаюсь дома.", pos: "фраза", note: "Время и планы" },
   { de: "Ich stehe immer früh auf.", tr: "их штэ́э и́мэр фрю а́уф", ru: "Я всегда встаю рано.", pos: "фраза", note: "Время и планы" },
   { de: "Gestern war ich sehr müde.", tr: "гэ́стэрн вар их зэр мю́дэ", ru: "Вчера я был очень уставшим.", pos: "фраза", note: "Время и планы" },
@@ -1215,7 +1204,6 @@ window.WORD_SETS = [
   { de: "Noch eine Serviette, bitte.", tr: "нох а́йнэ зэрвье́тэ би́тэ", ru: "Ещё одну салфетку, пожалуйста.", pos: "фраза", note: "В кафе" },
   { de: "Das Essen war sehr gut.", tr: "дас э́сэн вар зэр гут", ru: "Еда была очень хорошая.", pos: "фраза", note: "В кафе" },
   { de: "Ein Glas Wein, bitte.", tr: "айн глас вайн би́тэ", ru: "Бокал вина, пожалуйста.", pos: "фраза", note: "В кафе" },
-  { de: "Wie viel kostet das?", tr: "ви филь ко́стэт дас", ru: "Сколько это стоит?", pos: "фраза", note: "Покупки" },
   { de: "Das ist zu teuer.", tr: "дас ист цу то́йэр", ru: "Это слишком дорого.", pos: "фраза", note: "Покупки" },
   { de: "Haben Sie das billiger?", tr: "ха́бэн зи дас би́лигэр", ru: "У вас есть подешевле?", pos: "фраза", note: "Покупки" },
   { de: "Ich möchte das kaufen.", tr: "их мёхтэ дас ка́уфэн", ru: "Я хочу это купить.", pos: "фраза", note: "Покупки" },
@@ -1248,11 +1236,8 @@ window.WORD_SETS = [
   { de: "Ich habe Kopfschmerzen.", tr: "их ха́бэ ко́пфшмэрцэн", ru: "У меня болит голова.", pos: "фраза", note: "У врача" },
   { de: "Ich habe Halsschmerzen.", tr: "их ха́бэ ха́льсшмэрцэн", ru: "У меня болит горло.", pos: "фраза", note: "У врача" },
   { de: "Mein Bauch tut weh.", tr: "майн ба́ух тут вэ", ru: "У меня болит живот.", pos: "фраза", note: "У врача" },
-  { de: "Wo tut es weh?", tr: "во тут эс вэ", ru: "Где болит?", pos: "фраза", note: "У врача" },
   { de: "Ich habe Fieber.", tr: "их ха́бэ фи́бэр", ru: "У меня температура.", pos: "фраза", note: "У врача" },
   { de: "Ich habe Husten und Schnupfen.", tr: "их ха́бэ ху́стэн унд шну́пфэн", ru: "У меня кашель и насморк.", pos: "фраза", note: "У врача" },
-  { de: "Mir ist schlecht.", tr: "мир ист шлехт", ru: "Мне плохо.", pos: "фраза", note: "У врача" },
-  { de: "Ich fühle mich schlecht.", tr: "их фю́лэ мих шлехт", ru: "Я плохо себя чувствую.", pos: "фраза", note: "У врача" },
   { de: "Ich bin erkältet.", tr: "их бин эркэ́льтэт", ru: "Я простудился.", pos: "фраза", note: "У врача" },
   { de: "Haben Sie ein Rezept?", tr: "ха́бэн зи айн рэцэ́пт", ru: "У вас есть рецепт?", pos: "фраза", note: "У врача" },
   { de: "Wo ist die nächste Apotheke?", tr: "во ист ди нэ́хстэ апотэ́кэ", ru: "Где ближайшая аптека?", pos: "фраза", note: "У врача" },
@@ -1281,7 +1266,6 @@ window.WORD_SETS = [
   { de: "Das Wasser ist kalt.", tr: "дас ва́сэр ист кальт", ru: "Вода холодная.", pos: "фраза", note: "Дома" },
   { de: "Ich räume mein Zimmer auf.", tr: "их ро́ймэ майн ци́мэр а́уф", ru: "Я убираю свою комнату.", pos: "фраза", note: "Дома" },
   { de: "Ich arbeite als Lehrerin.", tr: "их а́рбайтэ альс ле́рэрин", ru: "Я работаю учительницей.", pos: "фраза", note: "Работа и учёба" },
-  { de: "Was sind Sie von Beruf?", tr: "вас зинд зи фон бэру́ф", ru: "Кто вы по профессии?", pos: "фраза", note: "Работа и учёба" },
   { de: "Ich habe heute ein Meeting.", tr: "их ха́бэ хо́йтэ айн ми́тинг", ru: "У меня сегодня встреча.", pos: "фраза", note: "Работа и учёба" },
   { de: "Der Chef ist nicht da.", tr: "дэр шэф ист нихт да", ru: "Начальника нет на месте.", pos: "фраза", note: "Работа и учёба" },
   { de: "Ich mache jetzt Pause.", tr: "их ма́хэ ецт па́узэ", ru: "У меня сейчас перерыв.", pos: "фраза", note: "Работа и учёба" },
@@ -1315,9 +1299,72 @@ window.WORD_SETS = [
   { de: "Ich lese gern Bücher.", tr: "их ле́зэ гэрн бю́хэр", ru: "Я люблю читать книги.", pos: "фраза", note: "Свободное время" },
   { de: "Wir wandern gern im Wald.", tr: "вир ва́ндэрн гэрн им вальд", ru: "Мы любим гулять в лесу.", pos: "фраза", note: "Свободное время" },
   { de: "Ich male und zeichne gern.", tr: "их ма́лэ унд ца́йхнэ гэрн", ru: "Я люблю рисовать.", pos: "фраза", note: "Свободное время" },
-  { de: "Viel Spaß!", tr: "филь шпас", ru: "Приятно провести время!", pos: "фраза", note: "Свободное время" },
   { de: "Das Spiel beginnt um sieben.", tr: "дас шпиль бэги́нт ум зи́бэн", ru: "Игра начинается в семь.", pos: "фраза", note: "Свободное время" },
   { de: "Ich mache dreimal pro Woche Sport.", tr: "их ма́хэ дра́ймаль про во́хэ шпорт", ru: "Я занимаюсь спортом три раза в неделю.", pos: "фраза", note: "Свободное время" }
+
+  ]},
+{
+  id: "leo-2",
+  name: "Модуль 3",
+  words: [
+
+  { de: "ohne", tr: "о́нэ", ru: "без", pos: "предл." },
+  { de: "das Wiedersehen", tr: "дас ви́дэрзээн", ru: "встреча", pos: "сущ." },
+  { de: "für", tr: "фюр", ru: "для", pos: "предл." },
+  { de: "bestellen", tr: "бэстэ́лэн", ru: "заказывать, заказать", pos: "глаг.", forms: "bestellte, bestellt" },
+  { de: "das Komma", tr: "дас ко́ма", ru: "запятая", pos: "сущ." },
+  { de: "kennenlernen", tr: "кэ́нэнлэрнэн", ru: "знакомиться, познакомиться", pos: "глаг.", forms: "lernte kennen, kennengelernt" },
+  { de: "die Fremdsprache", tr: "ди фрэ́мтшпрахэ", ru: "иностранный язык", pos: "сущ." },
+  { de: "alle", tr: "а́лэ", ru: "каждый", pos: "прил." },
+  { de: "lieber", tr: "ли́бэр", ru: "лучше", pos: "нареч." },
+  { de: "das Getränk", tr: "дас гэтрэ́нк", ru: "напиток", pos: "сущ." },
+  { de: "falsch", tr: "фальш", ru: "неправильный", pos: "прил." },
+  { de: "aber", tr: "а́бэр", ru: "но", pos: "союз" },
+  { de: "verwitwet", tr: "фэрви́твэт", ru: "овдовевший", pos: "прил." },
+  { de: "getrennt", tr: "гэтрэ́нт", ru: "отдельный", pos: "прил." },
+  { de: "der Kellner | die Kellnerin", tr: "дэр кэ́льнэр | ди кэ́льнэрин", ru: "официант | официантка", pos: "сущ." },
+  { de: "der Brief", tr: "дэр бриф", ru: "письмо", pos: "сущ." },
+  { de: "zahlen", tr: "ца́лэн", ru: "платить", pos: "глаг.", forms: "zahlte, gezahlt" },
+  { de: "bezahlen", tr: "бэца́лэн", ru: "оплачивать, заплатить", pos: "глаг.", forms: "bezahlte, bezahlt" },
+  { de: "wiederholen", tr: "ви́дэрхолэн", ru: "повторять, повторить", pos: "глаг.", forms: "wiederholte, wiederholt" },
+  { de: "bekommen", tr: "бэко́мэн", ru: "получать, получить", pos: "глаг.", forms: "bekam, bekommen" },
+  { de: "das Paket", tr: "дас па́кэт", ru: "посылка", pos: "сущ." },
+  { de: "die Postleitzahl", tr: "ди по́стлайцаль", ru: "почтовый индекс", pos: "сущ." },
+  { de: "richtig", tr: "ри́хтих", ru: "правильный", pos: "прил." },
+  { de: "der Satz", tr: "дэр зац", ru: "предложение", pos: "сущ." },
+  { de: "einfach", tr: "а́йнфах", ru: "просто", pos: "нареч." },
+  { de: "geschieden", tr: "гэши́дэн", ru: "разведённый", pos: "прил." },
+  { de: "die Muttersprache", tr: "ди му́ттэршпрахэ", ru: "родной язык", pos: "сущ." },
+  { de: "mit", tr: "мит", ru: "с", pos: "предл." },
+  { de: "noch einmal", tr: "нох а́йнмаль", ru: "снова", pos: "нареч." },
+  { de: "schlafen", tr: "шла́фэн", ru: "спать", pos: "глаг.", forms: "schlief, geschlafen" },
+  { de: "vergleichen", tr: "фэргла́йхэн", ru: "сравнивать, сравнить", pos: "глаг.", forms: "verglich, verglichen" },
+  { de: "die Tabelle", tr: "ди та́бэлэ", ru: "таблица", pos: "сущ." },
+  { de: "ledig", tr: "ле́дих", ru: "холостой", pos: "прил." },
+  { de: "die Zahl", tr: "ди цаль", ru: "цифра", pos: "сущ." },
+  { de: "Was möchten Sie?", tr: "вас мёхтэн зи", ru: "Что вы желаете?", pos: "фраза" },
+  { de: "wenig", tr: "вэ́них", ru: "мало", pos: "нареч." },
+  { de: "als", tr: "альс", ru: "как", pos: "союз" },
+  { de: "überall", tr: "ю́бэраль", ru: "везде", pos: "нареч." },
+  { de: "Ich möchte gern", tr: "их мёхтэ гэрн", ru: "мне хотелось бы", pos: "фраза" },
+  { de: "Ich habe nur wenig Zeit.", tr: "их ха́бэ нур вэ́них цайт", ru: "У меня мало времени", pos: "фраза" },
+  { de: "die Leute", tr: "ди ло́йтэ", ru: "люди", pos: "сущ." },
+  { de: "nur", tr: "нур", ru: "только", pos: "нареч." },
+  { de: "verlobt", tr: "фэрло́бт", ru: "обручённый", pos: "прил." },
+  { de: "Einen Moment bitte!", tr: "а́йнэн мо́мэнт би́тэ", ru: "минутку!", pos: "фраза" },
+  { de: "der Kopfhörer", tr: "дэр ко́пфхёрэр", ru: "наушники", pos: "сущ." },
+  { de: "die Heimat", tr: "ди ха́ймат", ru: "родина", pos: "сущ." },
+  { de: "der Eistee", tr: "дэр а́йстэ", ru: "чай со льдом", pos: "сущ." },
+  { de: "die Handynummer", tr: "ди хэ́ндинумэр", ru: "номер мобильного телефона", pos: "сущ." },
+  { de: "Alles klar!", tr: "а́лэс клар", ru: "Всё понятно!", pos: "фраза" },
+  { de: "korrigieren", tr: "корриги́рэн", ru: "исправлять, исправить", pos: "глаг.", forms: "korrigierte, korrigiert" },
+  { de: "überprüfen", tr: "ю́бэрпрюфэн", ru: "проверять, проверить", pos: "глаг.", forms: "überprüfte, überprüft" },
+  { de: "Ich liebe dich.", tr: "их ли́бэ дих", ru: "Я люблю тебя", pos: "фраза" },
+  { de: "die Anmeldung", tr: "ди а́нмэльдунг", ru: "заявка", pos: "сущ." },
+  { de: "die Wortliste", tr: "ди во́ртлистэ", ru: "список слов", pos: "сущ." },
+  { de: "treffen", tr: "тре́фэн", ru: "встречать, встретить", pos: "глаг.", forms: "traf, getroffen" },
+  { de: "Freut mich!", tr: "фройт мих", ru: "Рад познакомиться!", pos: "фраза" },
+  { de: "Ich fahre nach Moskau.", tr: "их фа́рэ нах моска́у", ru: "Я еду в Москву", pos: "фраза" }
 
   ]
 }
