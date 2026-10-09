@@ -176,7 +176,8 @@ function autoTr(word) {
   while (i < w.length) {
     const three = w.slice(i, i + 3), two = w.slice(i, i + 2), ch = w[i];
     const next = w[i + 1] || '', prev = i ? w[i - 1] : '';
-    if (i === 0 && w.slice(0, 4) === 'chef') { out.push('шэф'); seenVowel = true; i += 4; }
+    if (w.slice(i, i + 4) === 'ssch') { out.push('сш'); i += 4; }   // aus+schalten
+    else if (i === 0 && w.slice(0, 4) === 'chef') { out.push('шэф'); seenVowel = true; i += 4; }
     else if (w.slice(i, i + 4) === 'tion') { out.push('цион'); seenVowel = true; i += 4; }
     else if (w.slice(i, i + 4) === 'tsch') { out.push('ч'); i += 4; }
     else if (three === 'sch') { out.push('ш'); i += 3; }
@@ -1556,9 +1557,37 @@ const STEM_CHANGE = {
   'waschen': ['wäschst', 'wäscht', 'a → ä'],    'wachsen': ['wächst', 'wächst', 'a → ä'],
   'schlagen': ['schlägst', 'schlägt', 'a → ä'], 'fangen': ['fängst', 'fängt', 'a → ä'],
   'raten': ['rätst', 'rät', 'a → ä'],           'braten': ['brätst', 'brät', 'a → ä'],
+  'laden': ['lädst', 'lädt', 'a → ä'],          'graben': ['gräbst', 'gräbt', 'a → ä'],
   'laufen': ['läufst', 'läuft', 'au → äu'],     'saufen': ['säufst', 'säuft', 'au → äu'],
   'stoßen': ['stößt', 'stößt', 'o → ö']
 };
+
+/* Отделяемые приставки: при спряжении они уходят в конец предложения
+   (ausschlafen → ich schlafe aus). Приставку отрезаем, только если остаток —
+   настоящий глагол, иначе «antworten» превратится в «an + tworten». */
+const SEP_PREFIX = ['zusammen', 'zurück', 'hinzu', 'statt', 'fern', 'nach', 'weg', 'vor',
+  'mit', 'aus', 'auf', 'ein', 'ab', 'an', 'zu', 'los', 'her', 'hin', 'bei'];
+const BASE_VERBS = ['holen', 'schalten', 'rufen', 'lehnen', 'laden', 'wärmen', 'fügen',
+  'bereiten', 'machen', 'legen', 'stellen', 'setzen', 'geben', 'kommen', 'gehen', 'stehen',
+  'fallen', 'halten', 'ziehen', 'tragen', 'waschen', 'kaufen', 'hören', 'sagen', 'schreiben',
+  'räumen', 'wischen', 'fassen', 'fangen', 'sehen', 'finden', 'nehmen', 'schlafen', 'fahren',
+  'laufen', 'springen', 'steigen', 'bringen', 'passen', 'schauen', 'suchen', 'treten'];
+function isKnownVerb(v) {
+  const low = String(v).toLowerCase();
+  if (!/^[a-zäöüß]+(en|ern|eln|n)$/.test(low)) return false;
+  if (IRREGULAR[low] || STEM_CHANGE[low] || BASE_VERBS.indexOf(low) >= 0) return true;
+  return WORDS.some(x => x.pos === 'глаг.' && String(x.de).toLowerCase() === low);
+}
+function splitSeparable(inf) {
+  const low = String(inf).toLowerCase();
+  for (const p of SEP_PREFIX) {
+    if (low.indexOf(p) === 0 && low.length > p.length + 3) {
+      const base = inf.slice(p.length);
+      if (isKnownVerb(base)) return { prefix: p, base: base };
+    }
+  }
+  return null;
+}
 
 /* Нужна ли соединительная «e»: arbeiten → du arbeitest, но wohnen → du wohnst. */
 function needsLinkE(stem) {
@@ -1576,6 +1605,13 @@ function needsLinkE(stem) {
 function conjugate(w) {
   const inf = String(typeof w === 'string' ? w : w.de).trim();
   const low = inf.toLowerCase();
+  const sep = splitSeparable(inf);
+  if (sep) {
+    const inner = conjugate(sep.base);
+    const meta = Object.assign({}, inner.meta, { sep: sep.prefix, inf: inf });
+    if (w && w.conj) return { forms: Object.assign({}, inner.forms, w.conj), hint: inner.hint, meta: meta };
+    return { forms: inner.forms, hint: inner.hint, meta: meta };
+  }
   let forms, meta;
   if (/eln$/.test(low)) {
     const stem = inf.slice(0, -1);                                  // sammeln → sammel
@@ -1627,6 +1663,10 @@ function conjRule(w, key) {
   const m = c.meta, form = c.forms[key], stem = esc(m.stem), inf = esc(m.inf);
   const B = x => `<b>${esc(x)}</b>`;
   const out = [`${B(PERSON_NAME[key])}`];
+  if (m.sep) {
+    out.push(`У глагола ${B(m.inf)} отделяемая приставка ${B(m.sep)}: при спряжении
+      она отрывается и уходит в конец предложения — ${B(c.forms[key] + ' … ' + m.sep)}.`);
+  }
 
   if (m.irregular) {
     out.push(`${B(m.inf)} — неправильный глагол: формы не выводятся по правилу,
@@ -1772,14 +1812,16 @@ function conjStart(verbs, sig) {
         : '';
       CJ.rows.push({
         w: w, p: p, answer: c.forms[p.key], hint: c.hint, state: '',
+        sep: c.meta.sep || '',
         ru: ru || `${p.ru} — ${w.ru}`
       });
       /* Тот же набор предложений, но целиком: с русского на немецкий. */
-      const tail = w.ex ? ' ' + w.ex : '';
+      const tail = (w.ex ? ' ' + w.ex : '') + (c.meta.sep ? ' ' + c.meta.sep : '');
       const main = `${firstPron(p)} ${c.forms[p.key]}${tail}.`;
       const alt = [];
       if (p.key === 'er') alt.push(`Sie ${c.forms.er}${tail}.`, `Es ${c.forms.er}${tail}.`);
       if (p.key === 'wir') alt.push(`Sie ${c.forms.sie}${tail}.`);
+      if (c.meta.sep) alt.push(main.replace(' ' + c.meta.sep + '.', '.'));   // без приставки тоже примем
       CJ.trows.push({
         w: w, p: p, answer: main, accepts: [main].concat(alt),
         ru: ruSentence(w, p.ruIdx[0]), state: ''
@@ -1835,7 +1877,7 @@ function endingsHTML() {
           <input class="c-in" data-i="${i}" type="text" autocomplete="off" autocorrect="off"
                  autocapitalize="off" spellcheck="false" lang="de"
                  value="${esc(r.typed || '')}" ${done ? 'disabled' : ''}>
-          ${r.w.ex ? esc(r.w.ex) + '.' : '.'}
+          ${r.w.ex ? esc(r.w.ex) : ''}${r.sep ? ' ' + esc(r.sep) : ''}.
           <span class="c-inf">(${esc(r.w.de)})</span>
         </div>
         <div class="c-sub">
