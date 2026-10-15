@@ -26,16 +26,16 @@ SETS.forEach(set => {
     const extra = [w.pl ? 'мн. ч.: ' + w.pl : '', w.forms || '', w.note || '']
       .filter(Boolean).join(' · ');
     body += `<tr>
-      <td class="de">${esc(w.de)}${extra ? `<span class="extra">${esc(extra)}</span>` : ''}</td>
+      <td class="word">${esc(w.en)}${extra ? `<span class="extra">${esc(extra)}</span>` : ''}</td>
       <td class="tr">${esc(w.tr)}</td>
-      <td class="ru">${esc(w.ru)}</td>
+      <td class="ru">${esc(w.ru)}${w.def ? `<span class="def">${esc(w.def)}</span>` : ''}</td>
     </tr>`;
   });
   body += '</tbody></table></section>';
 });
 
 const html = `<!DOCTYPE html>
-<html lang="ru"><head><meta charset="utf-8"><title>Немецкие слова — словарь</title>
+<html lang="ru"><head><meta charset="utf-8"><title>Английские слова — словарь</title>
 <style>
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
@@ -56,12 +56,13 @@ const html = `<!DOCTYPE html>
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
   td { padding: 1.1mm 2mm 1.1mm 0; border-bottom: .4pt solid #e2e4ea; vertical-align: top; }
-  .de { width: 34%; font-weight: 600; }
-  .tr { width: 26%; color: #4b45c6; }
-  .ru { width: 40%; }
+  .word { width: 30%; font-weight: 600; }
+  .tr { width: 22%; color: #4b45c6; }
+  .ru { width: 48%; }
   .extra { display: block; font-weight: 400; font-size: 8.5pt; color: #777; }
+  .def { display: block; font-size: 8.5pt; color: #777; font-style: italic; }
 </style></head><body>
-<h1>Немецкие слова</h1>
+<h1>Английские слова</h1>
 <p class="sub">${total} слов в ${SETS.length} модулях · ${today}</p>
 <div class="toc">${SETS.map(s => `<div><b>${esc(s.name)}</b> — ${s.words.length}</div>`).join('')}</div>
 ${body}
