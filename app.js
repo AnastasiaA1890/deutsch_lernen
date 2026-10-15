@@ -1923,7 +1923,7 @@ $('#conjReset').addEventListener('click', () => {
    свой словарь подсказок, своя отметка «прочитано».
    ========================================================================== */
 const READ = window.READING || { gloss: {}, texts: [] };
-const WORD_RE = /[A-Za-zÄÖÜäöüßéÉ]+(?:-[A-Za-zÄÖÜäöüßéÉ]+)*/g;
+const WORD_RE = /[A-Za-z]+(?:[-'\u2019][A-Za-z]+)*/g;
 let readLevel = 'все', readTopic = 'все', openTextId = null;
 
 function isRead(id) { return !!(S.read && S.read[id]); }
