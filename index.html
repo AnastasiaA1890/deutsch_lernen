@@ -215,15 +215,18 @@
       <select id="addPos"></select>
 
       <label class="field-label" style="margin-top:16px">Слова</label>
-      <p class="muted small">По одному в строке. Обязательны первые три части:<br>
-        <code>перевод = word | транскри́пция | мн. ч. | транскри́пция мн. ч.</code><br>
-        <code>гипотеза = hypothesis | хайпо́сэсис | hypotheses | хайпо́сэсиз</code><br>
-        <code>источник = source | сорс</code></p>
-      <textarea id="addInput" rows="7" placeholder="источник = source | сорс"></textarea>
+      <p class="muted small">По одному в строке — слово, знак «=», перевод:<br>
+        <code>source = источник</code><br>
+        Транскрипция считается сама, её можно поправить ниже. Если хочется
+        задать её сразу — после вертикальной черты, там же множественное число:<br>
+        <code>source = источник | сорс</code><br>
+        <code>hypothesis = гипотеза | хайпо́сэсис | hypotheses | хайпо́сэсиз</code></p>
+      <textarea id="addInput" rows="7" placeholder="source = источник"></textarea>
       <div class="row">
         <button class="btn" id="addBtn">Добавить</button>
         <button class="btn ghost" id="addStressBtn" title="Поставить ударение на выделенную букву">Ударение ́ (Alt+A)</button>
       </div>
+      <div id="addPreview"></div>
       <p class="muted small" id="addHint"></p>
       <div id="addOut"></div>
     </div>

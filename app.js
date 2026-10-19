@@ -158,17 +158,19 @@ const TR_EXC = {
   heart: 'харт', beautiful: 'бью́тифул', europe: 'ю́рэп', iron: 'а́йэрн',
   island: 'а́йлэнд', answer: 'э́нсэр', because: 'бико́з', friend: 'френд',
   great: 'грэйт', break: 'брэйк', steak: 'стэйк', many: 'ме́ни', any: 'э́ни',
-  very: 'ве́ри', only: 'о́унли', money: 'ма́ни', honest: 'о́нэст', hour: 'а́уэр'
+  very: 'ве́ри', only: 'о́унли', money: 'ма́ни', honest: 'о́нэст', hour: 'а́уэр',
+  to: 'ту', the: 'зэ', give: 'гив', have: 'хэв', live: 'лив', above: 'эба́в',
+  our: 'а́уэр', sour: 'са́уэр', flour: 'фла́уэр'
 };
 /* Сначала самые длинные куски: порядок в списке и есть порядок проверки. */
 const TR_PAIRS = [
-  ['scien', 'са́йэн'], ['stion', 'счэн'], ['ation', 'эйшн'], ['ution', 'ушн'],
+  ['scien', 'са́йэн'], ['stion', 'счэн'], ['ation', 'эйшн'], ['ution', 'ушн'], ['otion', 'оушн'], ['ify', 'ифай'],
   ['ition', 'ишн'], ['ought', 'от'], ['aught', 'от'], ['cious', 'шэс'], ['tious', 'шэс'],
   ['tion', 'шн'], ['sion', 'жн'], ['cian', 'шн'], ['cial', 'шл'], ['tial', 'шл'],
   ['ture', 'чэр'], ['sure', 'жэр'], ['ight', 'айт'], ['ious', 'иэс'], ['eous', 'иэс'],
   ['ance', 'энс'], ['ence', 'энс'], ['able', 'эбл'], ['ible', 'ибл'], ['ical', 'икл'],
   ['sch', 'ск'], ['tch', 'ч'], ['nge', 'ндж'], ['dge', 'дж'], ['ous', 'эс'],
-  ['oor', 'ур'], ['our', 'а́уэр'], ['air', 'эр'], ['ear', 'иэр'], ['eer', 'иэр'],
+  ['oor', 'ур'], ['our', 'ор'], ['air', 'эр'], ['ear', 'иэр'], ['eer', 'иэр'],
   ['cce', 'ксэ'], ['cci', 'кси'],
   ['oy', 'ой'], ['oi', 'ой'], ['ee', 'и'], ['ea', 'и'], ['oo', 'у'], ['ou', 'ау'],
   ['ow', 'оу'], ['oa', 'оу'], ['au', 'о'], ['aw', 'о'], ['ai', 'эй'], ['ay', 'эй'],
@@ -192,6 +194,8 @@ function autoTr(word) {
   let w = String(word || '').toLowerCase().trim();
   if (!w) return '';
   if (TR_EXC[w]) return TR_EXC[w];
+  /* «to pursue», «give up» — каждое слово читается само по себе. */
+  if (w.indexOf(' ') > 0) return w.split(/\s+/).map(autoTr).join(' ');
   let magic = '';
   const me = TR_KEEP_E.test(w) ? null : w.match(/^(.*?)([aeiou])([bcdfgklmnprstvz])e$/);
   if (me && me[1].length) {
@@ -1233,6 +1237,7 @@ inits.add = function () {
   }
   if (!$('#addName').value) $('#addName').value = 'Мои слова ' + (MODULES.length + 1);
   $('#addOut').innerHTML = '';
+  renderAddPreview();
   $('#addHint').innerHTML = addTarget === 'new'
     ? 'Слова попадут в новый модуль и сразу будут доступны во всех тренировках; глаголы — и в «Формы глагола».'
     : `Слова сразу попадут в «${esc(moduleName(addTarget))}» и будут доступны во всех
@@ -1260,31 +1265,70 @@ function guessPos(en) {
   if (/(ize|ise|ify|ate|ect|ate|ude)$/.test(d)) return 'глаг.';
   return 'сущ.';
 }
+/* Строка: «source = источник». Слово слева, перевод справа; всё, что после
+   вертикальной черты, — необязательное: транскрипция, множественное число
+   и его транскрипция. Транскрипции нет — считаем черновик autoTr() и
+   показываем его в предпросмотре, чтобы было что поправить до добавления. */
 function parseAddLines(text) {
   const rows = [], bad = [];
   text.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
     const eq = line.indexOf('=');
     if (eq < 0) { bad.push(line); return; }
-    const ru = line.slice(0, eq).trim();
-    const [en, tr, pl, plTr] = line.slice(eq + 1).split('|').map(x => x.trim());
-    if (!ru || !en || !tr) { bad.push(line); return; }
+    const en = line.slice(0, eq).trim();
+    const [ru, tr, pl, plTr] = line.slice(eq + 1).split('|').map(x => x.trim());
+    if (!en || !ru) { bad.push(line); return; }
     const chosen = $('#addPos') && $('#addPos').value;
-    const pos = chosen && chosen !== 'auto' ? chosen : guessPos(en);
-    const o = [`en: ${JSON.stringify(en)}`, `tr: ${JSON.stringify(tr)}`,
-               `ru: ${JSON.stringify(ru)}`, `pos: ${JSON.stringify(pos)}`];
-    if (pl) o.push(`pl: ${JSON.stringify(pl)}`);
-    if (plTr) o.push(`plTr: ${JSON.stringify(plTr)}`);
-    rows.push(o);
-    return;
+    const edited = addTrEdits[en + '|' + ru];
+    rows.push({
+      en: en, ru: ru,
+      tr: tr || edited || autoTr(en),
+      trDraft: !tr && !edited,
+      pos: chosen && chosen !== 'auto' ? chosen : guessPos(en),
+      pl: pl || '', plTr: plTr || (pl ? autoTr(pl) : '')
+    });
   });
   return { rows, bad };
+}
+
+/* Поправленные руками транскрипции переживают перерисовку предпросмотра:
+   ключ — сама строка «слово|перевод», а не её номер. */
+let addTrEdits = {};
+let addPreviewTimer = null;
+function renderAddPreview() {
+  const box = $('#addPreview');
+  const { rows, bad } = parseAddLines($('#addInput').value);
+  if (!rows.length && !bad.length) { box.innerHTML = ''; return; }
+  const draft = rows.some(r => r.trDraft);
+  box.innerHTML =
+    (rows.length ? `<div class="ap-head">Будет добавлено: <b>${rows.length}</b></div>` : '') +
+    rows.map((r, i) => `<div class="ap-row">
+        <span class="ap-en">${esc(r.en)}${r.pl
+          ? `<span class="ap-pl">мн. ч.: ${esc(r.pl)}${r.plTr ? ' · ' + esc(r.plTr) : ''}</span>` : ''}</span>
+        <input class="ap-tr${r.trDraft ? ' draft' : ''}" data-key="${esc(r.en + '|' + r.ru)}"
+               value="${esc(r.tr)}" autocomplete="off" spellcheck="false"
+               title="транскрипция — её можно поправить прямо здесь">
+        <span class="ap-ru">${esc(r.ru)}</span>
+        <span class="ap-pos">${esc(r.pos)}</span>
+      </div>`).join('') +
+    (draft ? `<p class="muted small ap-note">Подсвеченная транскрипция посчитана
+       автоматически: ударение в ней стоит на первом гласном, так что её стоит
+       проверить и поправить прямо здесь.</p>` : '') +
+    (bad.length ? `<p class="small ap-bad">Не разобрано (нужен формат
+       «source = источник»): ${bad.map(esc).join('; ')}</p>` : '');
+  box.querySelectorAll('.ap-tr').forEach(inp => {
+    inp.addEventListener('focus', () => { lastAddField = inp; });
+    inp.addEventListener('input', () => {
+      addTrEdits[inp.dataset.key] = inp.value;
+      inp.classList.remove('draft');
+    });
+  });
 }
 
 $('#addBtn').addEventListener('click', () => {
   const { rows, bad } = parseAddLines($('#addInput').value);
   if (!rows.length) {
     $('#addOut').innerHTML = `<p class="small" style="color:var(--bad)">
-      Не разобрано (нужен формат «перевод = word | транскри́пция»):
+      Не разобрано (нужен формат «source = источник»):
       ${bad.map(esc).join('; ') || 'пусто'}</p>`;
     return;
   }
@@ -1292,12 +1336,11 @@ $('#addBtn').addEventListener('click', () => {
   if (targetId === 'new') targetId = createOwnSet($('#addName').value).id;
 
   let added = 0, dup = 0;
-  rows.forEach(parts => {
-    const w = {};
-    parts.forEach(p => {
-      const i = p.indexOf(': ');
-      w[p.slice(0, i)] = JSON.parse(p.slice(i + 2));
-    });
+  rows.forEach(r => {
+    if (!r.tr) { bad.push(r.en + ' = ' + r.ru + ' (нет транскрипции)'); return; }
+    const w = { en: r.en, tr: r.tr, ru: r.ru, pos: r.pos };
+    if (r.pl) w.pl = r.pl;
+    if (r.plTr) w.plTr = r.plTr;
     if (addWordToModule(targetId, w)) dup++; else added++;
   });
 
@@ -1305,6 +1348,8 @@ $('#addBtn').addEventListener('click', () => {
   addTarget = targetId;
   S.lastOwnSet = targetId;
   $('#addInput').value = '';
+  addTrEdits = {};
+  renderAddPreview();
   save();
   inits.add();
   $('#addOut').innerHTML = `<p class="small">
@@ -1315,13 +1360,28 @@ $('#addBtn').addEventListener('click', () => {
   toast(added ? `Добавлено слов: ${added}` : 'Новых слов нет');
 });
 
+$('#addInput').addEventListener('input', () => {
+  clearTimeout(addPreviewTimer);
+  addPreviewTimer = setTimeout(renderAddPreview, 150);
+});
+$('#addInput').addEventListener('focus', () => { lastAddField = $('#addInput'); });
+$('#addPos').addEventListener('change', renderAddPreview);
+
+/* Ударение ставится в то поле, где стояла каретка: это может быть и строка
+   со словами, и поле транскрипции в предпросмотре. */
+let lastAddField = null;
 function insertStress() {
-  const ta = $('#addInput');
+  const ta = lastAddField && document.contains(lastAddField) ? lastAddField : $('#addInput');
   const p = ta.selectionStart;
   ta.value = ta.value.slice(0, p) + '́' + ta.value.slice(ta.selectionEnd);
   ta.selectionStart = ta.selectionEnd = p + 1;
   ta.focus();
+  if (ta.classList.contains('ap-tr')) {
+    addTrEdits[ta.dataset.key] = ta.value;
+    ta.classList.remove('draft');
+  }
 }
+$('#addStressBtn').addEventListener('mousedown', e => e.preventDefault());
 $('#addStressBtn').addEventListener('click', insertStress);
 
 /* ==========================================================================
@@ -1509,10 +1569,15 @@ function formEd(v) {
   if (needsDouble(v)) return v + v.slice(-1) + 'ed';
   return v + 'ed';
 }
+/* Глагол могли записать с частицей: «to pursue». Для правил нужна сама
+   основа, иначе получится «to pursues». */
+function baseVerb(x) {
+  return String(x == null ? '' : x).trim().replace(/^to\s+/i, '');
+}
 /* Формы глагола. w — слово из словаря либо просто строка. Поле forms в словаре
    («sought, sought») сильнее правил: неправильный глагол задаётся там. */
 function conjugate(w) {
-  const inf = String(typeof w === 'string' ? w : w.en).trim();
+  const inf = baseVerb(typeof w === 'string' ? w : w.en);
   const low = inf.toLowerCase();
   const custom = (typeof w === 'object' && w.forms)
     ? String(w.forms).split(',').map(x => x.trim()).filter(Boolean)
@@ -1599,7 +1664,7 @@ function plural(n, one, few, many) {
    ex записан в Present Simple 3-го лица, поэтому форму в нём легко найти,
    а из неё собираются и остальные времена. */
 function exParts(w) {
-  const s = formS(String(w.en).toLowerCase());
+  const s = formS(baseVerb(w.en).toLowerCase());
   const ex = String(w.ex || '');
   const i = ex.toLowerCase().indexOf(s);
   if (i < 0) return null;

@@ -50,17 +50,19 @@ EXC = {
     'europe': 'ю́рэп', 'iron': 'а́йэрн', 'island': 'а́йлэнд', 'answer': 'э́нсэр',
     'because': 'бико́з', 'friend': 'френд', 'great': 'грэйт', 'break': 'брэйк',
     'steak': 'стэйк', 'many': 'ме́ни', 'any': 'э́ни', 'very': 'ве́ри', 'only': 'о́унли',
-    'money': 'ма́ни', 'honest': 'о́нэст', 'hour': 'а́уэр',
+    'money': 'ма́ни', 'honest': 'о́нэст', 'hour': 'а́уэр', 'to': 'ту', 'the': 'зэ', 'give': 'гив',
+    'have': 'хэв', 'live': 'лив', 'above': 'эба́в',
+    'our': 'а́уэр', 'sour': 'са́уэр', 'flour': 'фла́уэр',
 }
 # Длинные куски идут первыми: порядок в списке и есть порядок проверки.
 PAIRS = [
-    ('scien', 'са́йэн'), ('stion', 'счэн'), ('ation', 'эйшн'), ('ution', 'ушн'),
+    ('scien', 'са́йэн'), ('stion', 'счэн'), ('ation', 'эйшн'), ('ution', 'ушн'), ('otion', 'оушн'), ('ify', 'ифай'),
     ('ition', 'ишн'), ('ought', 'от'), ('aught', 'от'), ('cious', 'шэс'), ('tious', 'шэс'),
     ('tion', 'шн'), ('sion', 'жн'), ('cian', 'шн'), ('cial', 'шл'), ('tial', 'шл'),
     ('ture', 'чэр'), ('sure', 'жэр'), ('ight', 'айт'), ('ious', 'иэс'), ('eous', 'иэс'),
     ('ance', 'энс'), ('ence', 'энс'), ('able', 'эбл'), ('ible', 'ибл'), ('ical', 'икл'),
     ('sch', 'ск'), ('tch', 'ч'), ('nge', 'ндж'), ('dge', 'дж'), ('ous', 'эс'),
-    ('oor', 'ур'), ('our', 'а́уэр'), ('air', 'эр'), ('ear', 'иэр'), ('eer', 'иэр'),
+    ('oor', 'ур'), ('our', 'ор'), ('air', 'эр'), ('ear', 'иэр'), ('eer', 'иэр'),
     ('cce', 'ксэ'), ('cci', 'кси'),
     ('oy', 'ой'), ('oi', 'ой'), ('ee', 'и'), ('ea', 'и'), ('oo', 'у'), ('ou', 'ау'),
     ('ow', 'оу'), ('oa', 'оу'), ('au', 'о'), ('aw', 'о'), ('ai', 'эй'), ('ay', 'эй'),
@@ -88,6 +90,8 @@ def translit(word):
         return ''
     if w in EXC:
         return EXC[w]
+    if ' ' in w:                                     # «to pursue», «give up»
+        return ' '.join(translit(part) for part in w.split())
     magic = ''
     m = None if KEEP_E.search(w) else MAGIC_E.match(w)
     if m and m.group(1):
