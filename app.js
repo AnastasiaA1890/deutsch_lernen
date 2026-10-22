@@ -31,6 +31,20 @@ function rebuildModules() {
     }
     const words = base.map(w =>
       Object.assign({}, w, { key: id + '::' + w.en + '|' + w.ru, module: id }));
+    /* Модуль из браузера мог остаться после выгрузки в words.js: тогда у двух
+       модулей один id, а значит и общие ключи прогресса. Второй плиткой его
+       не показываем — дописываем из него только то, чего нет в файле. */
+    const same = MODULES.find(m => m.id === id);
+    if (same) {
+      const seen = new Set(same.words.map(w => w.key));
+      words.forEach(w => {
+        if (seen.has(w.key)) return;
+        seen.add(w.key);
+        same.words.push(w);
+        WORDS.push(w);
+      });
+      return;
+    }
     MODULES.push({ id: id, name: set.name || ('Модуль ' + (i + 1)), words: words, own: !!own });
     WORDS.push.apply(WORDS, words);
   };
