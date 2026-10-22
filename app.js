@@ -36,12 +36,14 @@ function rebuildModules() {
        не показываем — дописываем из него только то, чего нет в файле. */
     const same = MODULES.find(m => m.id === id);
     if (same) {
+      same.ownCopy = true;
       const seen = new Set(same.words.map(w => w.key));
       words.forEach(w => {
         if (seen.has(w.key)) return;
         seen.add(w.key);
         same.words.push(w);
         WORDS.push(w);
+        same.ownCopyOnly = (same.ownCopyOnly || 0) + 1;   // есть только в браузере
       });
       return;
     }
@@ -138,6 +140,13 @@ function extraOf(id) { return (S.extra || {})[id] || []; }
 function dropExtras(id) {
   extraOf(id).forEach(w => { delete S.w[id + '::' + w.en + '|' + w.ru]; });
   if (S.extra) delete S.extra[id];
+  save(); rebuildModules();
+}
+/* Копия модуля, оставшаяся в браузере после выгрузки в words.js. Удаляем
+   только её: слова и прогресс остаются у модуля из файла, потому что id
+   и ключи прогресса у них одни и те же. */
+function dropOwnCopy(id) {
+  S.userSets = ownSets().filter(s => s.id !== id);
   save(); rebuildModules();
 }
 function deleteOwnSet(id) {
@@ -299,6 +308,14 @@ function bump(w, ok) {
 /* ---------- мелкие помощники ---------------------------------------------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/* «1 слово, 2 слова, 5 слов» — выбор формы по числу. */
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+}
 function shuffle(a) {
   a = a.slice();
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -1433,11 +1450,14 @@ inits.settings = function () {
       const mc = counts(m.words);
       return `<div class="set-row">
         <div><div class="t">${esc(m.name)}${m.own ? ' <span class="badge">в браузере</span>' : ''}${
+          m.ownCopy ? ' <span class="badge">копия в браузере</span>' : ''}${
           !m.own && extraOf(m.id).length ? ` <span class="badge">+${extraOf(m.id).length} в браузере</span>` : ''}</div>
         <div class="d">${mc.total} слов · выучено ${mc.known}, в работе ${mc.learning}, новых ${mc.fresh}</div></div>
         <div class="acts wrap">
           ${m.own ? `<button class="btn ghost small" data-export="${esc(m.id)}">Выгрузить в words.js</button>
                      <button class="btn ghost small danger" data-drop="${esc(m.id)}">Удалить</button>` : ''}
+          ${m.ownCopy ? `<button class="btn ghost small danger"
+            data-dropcopy="${esc(m.id)}">Убрать копию из браузера</button>` : ''}
           ${!m.own && extraOf(m.id).length ? `
             <button class="btn ghost small" data-extra="${esc(m.id)}">Выгрузить дописанные (${extraOf(m.id).length})</button>
             <button class="btn ghost small danger" data-dropextra="${esc(m.id)}">Убрать дописанные</button>` : ''}
@@ -1474,6 +1494,22 @@ inits.settings = function () {
     deleteOwnSet(set.id);
     inits.settings(); updateMini();
     toast('Модуль удалён');
+  }));
+  $('#settingsBody').querySelectorAll('[data-dropcopy]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.dropcopy;
+    const set = ownSetById(id);
+    const m = moduleById(id);
+    if (!set || !m) return;
+    const only = m.ownCopyOnly || 0;
+    const tail = only
+      ? `\nНо ${only} ${plural(only, 'слово есть', 'слова есть', 'слов есть')} только в этой копии` +
+        ` — ${plural(only, 'оно пропадёт', 'они пропадут', 'они пропадут')}.`
+      : '';
+    if (!confirm(`Убрать копию модуля «${set.name}», оставшуюся в браузере?\n` +
+      `Слова и прогресс останутся: они уже записаны в words.js.` + tail)) return;
+    dropOwnCopy(id);
+    inits.settings(); updateMini();
+    toast('Копия из браузера убрана');
   }));
   $('#settingsBody').querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => {
     const m = moduleById(b.dataset.reset);
