@@ -1525,7 +1525,7 @@ inits.settings = function () {
   $('#setTheme').value = S.theme;
   $('#setTheme').addEventListener('change', e => { S.theme = e.target.value; applyTheme(); save(); });
   $('#setRate').addEventListener('input', e => { S.rate = +e.target.value; save(); });
-  $('#setTest').addEventListener('click', () => speak('Guten Tag, das ist die Straße'));
+  $('#setTest').addEventListener('click', () => speak('Good morning. This is how the words will sound.'));
   $('#setAuto').addEventListener('change', e => { S.autoSpeak = e.target.checked; save(); });
   $('#setTr').addEventListener('change', e => { S.alwaysTr = e.target.checked; save(); });
   $('#setReset').addEventListener('click', () => {
