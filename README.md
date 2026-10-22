@@ -361,6 +361,7 @@ node tools/make_pdf.js
 
 ```
 index.html            приложение — открывать его
+favicon.svg           значок вкладки — флаг США
 styles.css            оформление
 app.js                логика всех режимов
 words.js              ← модули со словами, сюда дописывать
