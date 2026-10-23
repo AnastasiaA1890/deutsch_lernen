@@ -1,33 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Превращает список слов из PDF в готовый МОДУЛЬ для words.js.
+Превращает экспорт словаря LEO (PDF) в готовый МОДУЛЬ для words.js.
 
-    python3 tools/pdf_to_words.py words.pdf                     > новый_модуль.txt
-    python3 tools/pdf_to_words.py words.pdf "TOEFL · Глаголы"   > новый_модуль.txt
+    python3 tools/pdf_to_words.py 2.pdf                    > новый_модуль.txt
+    python3 tools/pdf_to_words.py 2.pdf "Глаголы, урок 3"  > новый_модуль.txt
 
 Каждая партия слов становится отдельным модулем: он выбирается на главном
 экране приложения и тренируется со своим собственным прогрессом.
 Вставь напечатанный блок в words.js перед самой последней скобкой ].
 
-Скрипт понимает две раскладки:
-  • «word — перевод» в одной строке (разделитель — тире, =, |, : или два
-    пробела подряд);
-  • таблицу, где английское слово и перевод стоят в разных колонках.
-Если перевода нет, в ru остаётся пустая строка — её нужно заполнить руками.
-В вывод может попасть и мусор (заголовки колонок вроде noun или easy) —
-это черновик, его всё равно просматривают глазами перед вставкой.
-
-Транскрипция — ЧЕРНОВАЯ: английское написание и чтение расходятся слишком
-сильно, чтобы считать её наверняка (ударение всегда ставится на первый
-гласный). Строки с черновиком помечены tr_draft: true — просмотри их
-глазами, поправь и убери пометку, прежде чем учить по ним.
-Это тот же набор правил, что и в autoTr() в app.js; правишь здесь —
-поправь и там.
+Скрипт достаёт русское и немецкое слово, множественное число и формы глагола,
+СРЕЗАЕТ артикли и подставляет ЧЕРНОВУЮ транскрипцию по правилам из README.
+Черновик помечен tr_draft: true — просмотри его глазами, поправь ударение
+и убери пометку, прежде чем учить по нему.
 """
 
+import os
 import re
 import sys
+import time
 
 try:
     import pypdf
@@ -35,220 +27,252 @@ except ImportError:
     sys.exit("Нужен модуль pypdf:  pip3 install pypdf")
 
 CYR = 'а-яёА-ЯЁ'
+FOOTER = re.compile(r'^\s*\d+\s*/\s*\d+\s+Copyright', re.I)
 
 # ---------------------------------------------------------------- транскрипция
-EXC = {
-    'one': 'уан', 'two': 'ту', 'who': 'ху', 'whose': 'хуз', 'some': 'сам', 'come': 'кам',
-    'done': 'дан', 'none': 'нан', 'love': 'лав', 'move': 'мув', 'prove': 'прув',
-    'lose': 'луз', 'said': 'сэд', 'says': 'сэз', 'again': 'эге́н', 'women': 'уи́мин',
-    'woman': 'уу́мэн', 'busy': 'би́зи', 'business': 'би́знэс', 'buy': 'бай', 'eye': 'ай',
-    'people': 'пи́пл', 'sure': 'шур', 'sugar': 'шу́гэр', 'work': 'уёрк', 'word': 'уёрд',
-    'world': 'уёрлд', 'war': 'уор', 'warm': 'уорм', 'were': 'уёр', 'where': 'уэ́р',
-    'there': 'зэр', 'their': 'зэр', 'through': 'сру', 'though': 'зоу', 'thought': 'сот',
-    'enough': 'ина́ф', 'tough': 'таф', 'laugh': 'лаф', 'cough': 'коф', 'could': 'куд',
-    'should': 'шуд', 'would': 'вуд', 'heart': 'харт', 'beautiful': 'бью́тифул',
-    'europe': 'ю́рэп', 'iron': 'а́йэрн', 'island': 'а́йлэнд', 'answer': 'э́нсэр',
-    'because': 'бико́з', 'friend': 'френд', 'great': 'грэйт', 'break': 'брэйк',
-    'steak': 'стэйк', 'many': 'ме́ни', 'any': 'э́ни', 'very': 'ве́ри', 'only': 'о́унли',
-    'money': 'ма́ни', 'honest': 'о́нэст', 'hour': 'а́уэр', 'to': 'ту', 'the': 'зэ', 'give': 'гив',
-    'have': 'хэв', 'live': 'лив', 'above': 'эба́в',
-    'our': 'а́уэр', 'sour': 'са́уэр', 'flour': 'фла́уэр',
-}
-# Длинные куски идут первыми: порядок в списке и есть порядок проверки.
-PAIRS = [
-    ('scien', 'са́йэн'), ('stion', 'счэн'), ('ation', 'эйшн'), ('ution', 'ушн'), ('otion', 'оушн'), ('ify', 'ифай'),
-    ('ition', 'ишн'), ('ought', 'от'), ('aught', 'от'), ('cious', 'шэс'), ('tious', 'шэс'),
-    ('tion', 'шн'), ('sion', 'жн'), ('cian', 'шн'), ('cial', 'шл'), ('tial', 'шл'),
-    ('ture', 'чэр'), ('sure', 'жэр'), ('ight', 'айт'), ('ious', 'иэс'), ('eous', 'иэс'),
-    ('ance', 'энс'), ('ence', 'энс'), ('able', 'эбл'), ('ible', 'ибл'), ('ical', 'икл'),
-    ('sch', 'ск'), ('tch', 'ч'), ('nge', 'ндж'), ('dge', 'дж'), ('ous', 'эс'),
-    ('oor', 'ур'), ('our', 'ор'), ('air', 'эр'), ('ear', 'иэр'), ('eer', 'иэр'),
-    ('cce', 'ксэ'), ('cci', 'кси'),
-    ('oy', 'ой'), ('oi', 'ой'), ('ee', 'и'), ('ea', 'и'), ('oo', 'у'), ('ou', 'ау'),
-    ('ow', 'оу'), ('oa', 'оу'), ('au', 'о'), ('aw', 'о'), ('ai', 'эй'), ('ay', 'эй'),
-    ('ei', 'эй'), ('ey', 'эй'), ('ie', 'и'), ('ue', 'у'), ('ui', 'у'), ('ew', 'ю'),
-    ('eu', 'ю'), ('ar', 'ар'), ('or', 'ор'), ('ir', 'ёр'), ('ur', 'ёр'), ('er', 'эр'),
-    ('ch', 'ч'), ('sh', 'ш'), ('th', 'с'), ('ph', 'ф'), ('wh', 'у'), ('ck', 'к'),
-    ('ng', 'нг'), ('nk', 'нк'), ('qu', 'ку'), ('gh', ''),
-]
-ONE = {
-    'a': 'э', 'e': 'э', 'i': 'и', 'o': 'о', 'u': 'а', 'y': 'и',
-    'b': 'б', 'c': 'к', 'd': 'д', 'f': 'ф', 'g': 'г', 'h': 'х', 'j': 'дж', 'k': 'к',
-    'l': 'л', 'm': 'м', 'n': 'н', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'v': 'в',
-    'w': 'у', 'x': 'кс', 'z': 'з',
-}
-LONG = {'a': 'эй', 'e': 'и', 'i': 'ай', 'o': 'оу', 'u': 'ю'}
-START = [('kn', 'н'), ('wr', 'р'), ('gn', 'н'), ('ps', 'с'), ('mn', 'н')]
-KEEP_E = re.compile(r'(ture|sure|dge|nge|ble|cle|dle|gle|kle|ple|tle|zle)$')
-MAGIC_E = re.compile(r'^(.*?)([aeiou])([bcdfgklmnprstvz])e$')
+VOWELS = 'aeiouäöüy'
 
+J_PAIRS = {'ja': 'я', 'je': 'е', 'jo': 'ё', 'ju': 'ю', 'ji': 'и', 'jä': 'е', 'jü': 'ю'}
 
 def translit(word):
-    """Черновая транскрипция английского слова русскими буквами."""
+    """Грубая транскрипция немецкого слова русскими буквами."""
     w = word.lower().strip()
-    if not w:
-        return ''
-    if w in EXC:
-        return EXC[w]
-    if ' ' in w:                                     # «to pursue», «give up»
-        return ' '.join(translit(part) for part in w.split())
-    magic = ''
-    m = None if KEEP_E.search(w) else MAGIC_E.match(w)
-    if m and m.group(1):
-        magic = LONG[m.group(2)]
-        tail = {'g': '\x02', 'c': '\x03'}.get(m.group(3), m.group(3))
-        w = m.group(1) + '\x01' + tail
     out, i = [], 0
-    for pre, rus in START:
-        if w.startswith(pre):
-            out.append(rus)
-            i = 2
-            break
+    start = True
+    seen_vowel = False
     while i < len(w):
-        ch = w[i]
+        three, two, ch = w[i:i + 3], w[i:i + 2], w[i]
         nxt = w[i + 1] if i + 1 < len(w) else ''
-        if ch == '\x01':
-            out.append(magic); i += 1; continue
-        if ch == '\x02':
-            out.append('дж'); i += 1; continue
-        if ch == '\x03':
-            out.append('с'); i += 1; continue
-        if ch == 'e' and i == len(w) - 1 and i > 2:      # немая e
-            i += 1; continue
-        pair = next((p for p in PAIRS if w[i:i + len(p[0])] == p[0]), None)
-        if pair:
-            out.append(pair[1]); i += len(pair[0]); continue
-        if ch == 'c' and nxt in 'eiy':
-            out.append('с'); i += 1; continue
-        if ch == 'g' and nxt in 'eiy':
-            out.append('дж'); i += 1; continue
-        if ch == 's' and i and nxt and w[i - 1] in 'aeiouy' and nxt in 'aeiouy':
-            out.append('з'); i += 1; continue
-        if ch == 'y' and i == 0:
-            out.append('й'); i += 1; continue
-        if ch == nxt and ch not in 'aeiou':              # двойная согласная
-            i += 1; continue
-        out.append(ONE.get(ch, ch))
-        i += 1
-    rus = re.sub(r'([аеёиоуыэюя])\1', r'\1', ''.join(out))
-    return stress(rus)
+        prev = w[i - 1] if i else ''
+        if three == 'sch':
+            out.append('ш'); i += 3
+        elif three == 'chs':
+            out.append('кс'); i += 3
+        elif two == 'ch':
+            out.append('х' if prev in 'aou' or w[i - 2:i] == 'au' else 'хь'); i += 2
+        elif two == 'ck':
+            out.append('к'); i += 2
+        elif two == 'tz':
+            out.append('ц'); i += 2
+        elif two in ('ei', 'ai'):
+            out.append('ай'); i += 2
+        elif two == 'ie':
+            out.append('и'); i += 2
+        elif two in ('eu', 'äu'):
+            out.append('ой'); i += 2
+        elif len(two) == 2 and two[0] == two[1] and two[0] in 'aeo':
+            out.append({'a': 'а', 'e': 'е' if not seen_vowel else 'э', 'o': 'о'}[two[0]])
+            seen_vowel = True; i += 2
+        elif two == 'au':
+            out.append('ау'); i += 2
+        elif two == 'qu':
+            out.append('кв'); i += 2
+        elif two == 'ph':
+            out.append('ф'); i += 2
+        elif two == 'th':
+            out.append('т'); i += 2
+        elif two == 'ng':
+            out.append('нг'); i += 2
+        elif two == 'dt':
+            out.append('т'); i += 2
+        elif two in J_PAIRS:
+            out.append(J_PAIRS[two]); seen_vowel = True; i += 2
+        elif two == 'ss':
+            out.append('с'); i += 2
+        elif two == 'st' and start:
+            out.append('шт'); i += 2
+        elif two == 'sp' and start:
+            out.append('шп'); i += 2
+        elif two == 'er' and i + 2 == len(w):
+            out.append('эр'); i += 2
+        elif two == 'en' and i + 2 == len(w):
+            out.append('эн'); i += 2
+        elif two == 'el' and i + 2 == len(w):
+            out.append('эль'); i += 2
+        elif ch == 'h' and prev and prev in VOWELS:
+            i += 1                                   # h после гласной не читается
+        elif ch == 'e':
+            # безударная «e» звучит как шва: Abende → а́бэндэ
+            out.append('е' if not seen_vowel else 'э'); seen_vowel = True; i += 1
+        elif ch == nxt and ch not in VOWELS:
+            i += 1                                   # двойная согласная
+        else:
+            simple = {
+                'a': 'а', 'e': 'е', 'i': 'и', 'o': 'о', 'u': 'у',
+                'ä': 'э', 'ö': 'ё', 'ü': 'ю', 'y': 'ю', 'ß': 'с',
+                'b': 'б', 'c': 'к', 'd': 'д', 'f': 'ф', 'g': 'г', 'h': 'х',
+                'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'p': 'п',
+                'q': 'к', 'r': 'р', 't': 'т', 'v': 'ф', 'w': 'в',
+                'x': 'кс', 'z': 'ц', 'é': 'е', 'è': 'е', 'á': 'а', 'ó': 'о',
+                's': 'з' if (nxt and nxt in VOWELS) else 'с',
+            }
+            out.append(simple.get(ch, ch))
+            if ch in VOWELS:
+                seen_vowel = True
+            i += 1
+        start = False
+    res = ''.join(out)
+    # оглушение в конце слова
+    res = re.sub(r'б$', 'п', res)
+    res = re.sub(r'д$', 'т', res)
+    res = re.sub(r'г$', 'к', res)
+    return stress(res, w)
 
 
-def stress(rus):
-    """Ударение ставим на первый гласный — в английском так далеко не всегда."""
-    if '́' in rus:
-        return rus
+UNSTRESSED_PREFIX = ('be', 'ge', 'ver', 'er', 'ent', 'emp', 'zer')
+STRESSED_TAIL = ('ion', 'ität', 'ieren', 'ei', 'ie')
+
+def stress(rus, orig):
+    """Ставит ударение: по умолчанию на первый слог, с оговорками."""
     pos = [i for i, c in enumerate(rus) if c in 'аеёиоуыэюя']
-    if len(pos) < 2 or rus[pos[0]] == 'ё':
-        return rus
-    at = pos[0]
-    return rus[:at + 1] + '́' + rus[at + 1:]
+    if len(pos) < 2:
+        return rus                                   # односложное — знак не нужен
+    idx = 0
+    if orig.startswith(UNSTRESSED_PREFIX) and len(pos) > 1:
+        idx = 1
+    if orig.endswith(STRESSED_TAIL):
+        idx = len(pos) - 1
+    i = pos[idx]
+    if rus[i] == 'ё':
+        return rus                                   # ё и так ударная
+    return rus[:i + 1] + '́' + rus[i + 1:]
 
 
-# ------------------------------------------------------------------ часть речи
-def guess_pos(en):
-    """Те же правила, что и в guessPos() в app.js."""
-    d = en.strip().lower()
-    if re.match(r'^to\s+\S+$', d):
-        return 'глаг.'
-    if re.search(r'[\s.!?]', d):
-        return 'фраза'
-    if d.endswith('ly') and len(d) > 4:
-        return 'нареч.'
-    if re.search(r'(tion|sion|ment|ness|ity|ship|ism|ance|ence|hood|dom|ure|age)$', d):
-        return 'сущ.'
-    if re.search(r'(ous|ful|less|able|ible|ive|ical|ish|ary)$', d) and len(d) > 5:
-        return 'прил.'
-    if re.search(r'(ize|ise|ify|ate|ect|ude)$', d):
-        return 'глаг.'
+# ------------------------------------------------------------------ разбор PDF
+POS_MARKS = [
+    (r'нсв|(?<=[а-яё́])св\b', 'глаг.'),
+    (r'\bприл\.', 'прил.'),
+    (r'\bнар\.', 'нареч.'),
+    (r'\bмест\.', 'мест.'),
+    (r'\bпред\.', 'предл.'),
+    (r'\bчаст\.', 'част.'),
+    (r'\bчисл\.', 'числ.'),
+    (r'\bм\.|\bж\.|\bср\.|нет ед\.ч\.|нет мн\.ч\.', 'сущ.'),
+]
+
+def guess_pos(ru_raw):
+    for pattern, name in POS_MARKS:
+        if re.search(pattern, ru_raw):
+            return name
     return 'сущ.'
 
+def clean_ru(ru_raw):
+    s = re.sub(r'(?<=[а-яё́])(нсв|св)\b', ' ', ru_raw)   # приклеенные пометки вида «бе́гатьнсв»
+    s = re.sub(r'\[[^\]]*\]', ' ', s)                  # [перен.], [разг.]
+    s = re.sub(r'\([^)]*\)', ' ', s)                    # (кого-л./что-л.)
+    s = re.split(r'\s+-\s+', s)[0]                      # пояснение после тире
+    s = re.sub(r'\b(м|ж|ср|нсв|св|прил|нар|мест|пред|част|числ|тж|также)\b\.?', ' ', s)
+    s = re.sub(r'нет (ед|мн)\.ч\.|мн\.ч\. нет|притяжат\.|отно́сит\.|нескл\.', ' ', s)
+    s = re.sub(r'\s*/\s*', ' / ', s).strip(' /')
+    s = re.sub(r'\s+', ' ', s).strip(' .,;')
+    return s
 
-# ----------------------------------------------------------------- разбор PDF
-SEP = re.compile(r'\s*(?:[—–-]{1,2}|=|\||:|\t|\s{2,})\s*')
-# Словарная статья — это строчное слово или короткое словосочетание,
-# а не кусок предложения: предложения начинаются с большой буквы и длиннее.
-EN_WORD = re.compile(r"^[a-z][a-z'\-]*(?: [a-z'\-]+){0,2}$")
-RU_ONLY = re.compile(r'^[%s][%s ,;()\-]*$' % (CYR, CYR))
-JUNK = re.compile(r'(https?://|www\.|^\s*page\s|^\s*\d+\s*$|copyright)', re.I)
+def clean_de(de_raw):
+    s = de_raw
+    forms = ''
+    m = re.search(r'\|([^|]+)\|', s)                    # | lief, gelaufen |
+    if m:
+        forms = m.group(1).strip()
+        s = s[:m.start()] + s[m.end():]
+    plural = ''
+    m = re.search(r'Pl\.\s*:\s*([^|]+?)(?:\s{2,}|$)', s)
+    if m:
+        plural = m.group(1).strip()
+        s = s[:m.start()]
+    s = re.sub(r'kein Pl\.|\bPl\.', ' ', s)
+    s = re.sub(r'\[[^\]]*\]|auch \[fig\.\]|wiss\.:.*|Possessivpron\.|Relativpron\.|\+\s*Akk\.', ' ', s)
+    s = re.sub(r'\((?:seltener|selten)[^)]*\)', ' ', s)
+    s = re.sub(r'\(?\b(jmdn|jmdm|etw|mit|sich)\b[^)]*\)', ' ', s)  # (jmdn./etw.Akk.)
+    s = re.sub(r'\s+-\s+.*$', '', s)
+    s = strip_articles(s)
+    plural = strip_articles(re.sub(r'\s*/\s*', ' / ', plural))
+    return re.sub(r'\s+', ' ', s).strip(' ,;'), plural.strip(' ,;'), forms
 
+def strip_articles(s):
+    s = re.sub(r'\b(der|die|das)\s+', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
 
-def read_lines(path):
+def split_line(line):
+    """Делит строку LEO на русскую и немецкую части по первой латинице."""
+    m = re.search(r'[A-Za-zÄÖÜäöüß]', line)
+    if not m:
+        return line, ''
+    head = line[:m.start()]
+    if not re.search(r'[а-яёА-ЯЁ]', head):
+        return '', line                      # строка целиком немецкая
+    return head, line[m.start():]
+
+def parse(path):
     reader = pypdf.PdfReader(path)
-    out = []
+    lines = []
     for page in reader.pages:
-        try:
-            text = page.extract_text(extraction_mode='layout')
-        except Exception:
-            text = page.extract_text() or ''
-        for line in text.replace('\xa0', ' ').split('\n'):
-            line = line.rstrip()
-            if line.strip() and not JUNK.search(line):
-                out.append(line.strip())
-    return out
+        for raw in (page.extract_text() or '').split('\n'):
+            if raw.strip() and not FOOTER.match(raw):
+                lines.append(raw.rstrip())
 
+    entries, ru_buf, de_buf = [], '', ''
+    def flush():
+        if ru_buf.strip() and de_buf.strip():
+            entries.append((ru_buf.strip(), de_buf.strip()))
 
-def parse(lines):
-    """Возвращает пары (английское слово, перевод). Перевод может быть пустым."""
-    pairs, i = [], 0
-    while i < len(lines):
-        line = lines[i]
-        parts = [p.strip() for p in SEP.split(line) if p.strip()]
-        head = parts[0] if parts else ''
-        if EN_WORD.match(head):
-            # перевод — рядом в строке, следующей строкой или его нет вовсе
-            ru = ''
-            for p in parts[1:]:
-                if RU_ONLY.match(p):
-                    ru = p
-                    break
-            if not ru and len(parts) == 1 and i + 1 < len(lines) and RU_ONLY.match(lines[i + 1]):
-                ru = lines[i + 1]
-                i += 1
-            pairs.append((head, ru))
-        i += 1
-    # дубли по слову убираем, сохраняя порядок
-    seen, uniq = set(), []
-    for en, ru in pairs:
-        key = en.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        uniq.append((en, ru))
-    return uniq
-
-
-def js(value):
-    return '"%s"' % value.replace('\\', '\\\\').replace('"', '\\"')
-
+    for line in lines:
+        ru, de = split_line(line)
+        if ru.strip() and de.strip():           # полная строка
+            if ru_buf.strip() and not de_buf.strip():
+                ru_buf += ' ' + ru              # продолжение многострочной статьи
+                de_buf = de
+            else:
+                flush(); ru_buf, de_buf = ru, de
+        elif ru.strip():                        # только русская часть
+            if de_buf.strip():
+                flush(); ru_buf, de_buf = ru, ''
+            else:
+                ru_buf += ' ' + ru
+        else:                                   # только немецкая часть
+            de_buf += ' ' + de
+    flush()
+    return entries
 
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     path = sys.argv[1]
-    name = sys.argv[2] if len(sys.argv) > 2 else 'Новый модуль'
-    mod_id = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or 'new-module'
+    name = sys.argv[2] if len(sys.argv) > 2 else os.path.splitext(os.path.basename(path))[0]
+    module_id = 'm%x' % int(time.time())
+    rows = []
+    for ru_raw, de_raw in parse(path):
+        ru = clean_ru(ru_raw)
+        de, plural, forms = clean_de(de_raw)
+        if not ru or not de:
+            continue
+        pos = guess_pos(ru_raw)
+        parts = [
+            'de: %s' % js(de),
+            'tr: %s' % js(translit(de.split('|')[0].split('/')[0].strip())),
+            'ru: %s' % js(ru),
+            'pos: %s' % js(pos),
+        ]
+        if plural:
+            parts.append('pl: %s' % js(plural))
+            parts.append('plTr: %s' % js(translit(plural.split('/')[0].split('|')[0].strip())))
+        if forms:
+            parts.append('forms: %s' % js(forms))
+        parts.append('tr_draft: true')
+        rows.append('    { ' + ', '.join(parts) + ' },')
 
-    pairs = parse(read_lines(path))
-    if not pairs:
-        sys.exit('В PDF не нашлось ни одного английского слова.')
-
+    sys.stderr.write('Разобрано статей: %d\n' % len(rows))
+    sys.stderr.write('Модуль: %s (id %s)\n' % (name, module_id))
+    sys.stderr.write('Вставь блок ниже в words.js перед самой последней скобкой ]\n')
     print('{')
-    print('  id: %s,' % js(mod_id))
+    print('  id: %s,' % js(module_id))
     print('  name: %s,' % js(name))
     print('  words: [')
-    for en, ru in pairs:
-        parts = ['en: %s' % js(en), 'tr: %s' % js(translit(en)), 'ru: %s' % js(ru),
-                 'pos: %s' % js(guess_pos(en)), 'tr_draft: true']
-        print('    { %s },' % ', '.join(parts))
+    print('\n'.join(rows))
     print('  ]')
     print('},')
-    print('', file=sys.stderr)
-    print('Слов: %d. Транскрипция черновая — проверь ударение и убери tr_draft.'
-          % len(pairs), file=sys.stderr)
-    print('id модуля: %s — он должен быть не такой, как у модулей в words.js: '
-          'к id привязан прогресс в браузере.' % mod_id, file=sys.stderr)
 
+def js(s):
+    return '"%s"' % str(s).replace('\\', '\\\\').replace('"', '\\"')
 
 if __name__ == '__main__':
     main()

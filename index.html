@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Английские слова</title>
+<title>Немецкие слова</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
 
 <header class="topbar">
-  <button class="brand" data-go="home">Английские&nbsp;слова</button>
+  <button class="brand" data-go="home">Немецкие&nbsp;слова</button>
   <div class="topbar-right">
     <span class="mini-progress" id="miniProgress"></span>
     <button class="icon-btn" id="themeBtn" title="Светлая / тёмная тема">◐</button>
@@ -66,12 +66,17 @@
       <button class="tile" data-go="typing">
         <span class="tile-ico">⌨️</span>
         <span class="tile-name">Ввод с клавиатуры</span>
-        <span class="tile-desc">Написать слово по-английски</span>
+        <span class="tile-desc">Написать слово по-немецки</span>
       </button>
       <button class="tile" data-go="match">
         <span class="tile-ico">⚡</span>
         <span class="tile-name">Подбор пар</span>
         <span class="tile-desc">Собрать пары на скорость</span>
+      </button>
+      <button class="tile" data-go="conj" id="conjTile">
+        <span class="tile-ico">🔤</span>
+        <span class="tile-name">Спряжение</span>
+        <span class="tile-desc" id="conjTileDesc">Окончания глаголов по лицам</span>
       </button>
       <button class="tile" data-go="read" id="readTile">
         <span class="tile-ico">📚</span>
@@ -143,6 +148,18 @@
     <div id="matchBody"></div>
   </section>
 
+  <!-- ==================== СПРЯЖЕНИЕ ==================== -->
+  <section class="screen" id="screen-conj">
+    <div class="bar wrap">
+      <button class="icon-btn" data-go="home" title="Назад">←</button>
+      <span class="bar-label big" id="conjScore">0 / 0</span>
+      <button class="btn ghost small" id="conjCheck">Проверить всё</button>
+      <button class="btn ghost small" id="conjShow">Показать ответы</button>
+      <button class="btn ghost small" id="conjReset">Сбросить</button>
+    </div>
+    <div id="conjBody"></div>
+  </section>
+
   <!-- ==================== СПИСОК СЛОВ ==================== -->
   <section class="screen" id="screen-list">
     <div class="bar">
@@ -192,19 +209,19 @@
       <div class="segmented" id="addTarget"></div>
 
       <label class="field-label" style="margin-top:16px">Название модуля</label>
-      <input type="text" id="addName" class="text-input" placeholder="Мои слова" autocomplete="off">
+      <input type="text" id="addName" class="text-input" placeholder="Набор 2" autocomplete="off">
 
       <label class="field-label" style="margin-top:16px">Часть речи</label>
       <select id="addPos"></select>
 
       <label class="field-label" style="margin-top:16px">Слова</label>
       <p class="muted small">По одному в строке — слово, знак «=», перевод:<br>
-        <code>source = источник</code><br>
+        <code>Haus = дом</code><br>
         Транскрипция считается сама, её можно поправить ниже. Если хочется
         задать её сразу — после вертикальной черты, там же множественное число:<br>
-        <code>source = источник | сорс</code><br>
-        <code>hypothesis = гипотеза | хайпо́сэсис | hypotheses | хайпо́сэсиз</code></p>
-      <textarea id="addInput" rows="7" placeholder="source = источник"></textarea>
+        <code>Fenster = окно | фэ́нстэр</code><br>
+        <code>Haus = дом | ха́ус | Häuser | хо́йзэр</code></p>
+      <textarea id="addInput" rows="7" placeholder="Haus = дом"></textarea>
       <div class="row">
         <button class="btn" id="addBtn">Добавить</button>
         <button class="btn ghost" id="addStressBtn" title="Поставить ударение на выделенную букву">Ударение ́ (Alt+A)</button>
